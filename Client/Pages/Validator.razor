@@ -338,10 +338,13 @@
     
     private async Task GenerateRoute()
     {
-        _route = await Http.GetFromJsonAsync<GeneratedRoute>(
-            $"RouteSearch?departure={HttpUtility.UrlEncode(Plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(Plan.DestinationAirport)}");
-        if (_route is { Success: true })
-            Plan.Route = _route.Plan;
+        if (!string.IsNullOrWhiteSpace(Plan.DepartingAirport) && !string.IsNullOrWhiteSpace(Plan.DestinationAirport))
+        {
+            _route = await Http.GetFromJsonAsync<GeneratedRoute>(
+                $"RouteSearch?departure={HttpUtility.UrlEncode(Plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(Plan.DestinationAirport)}");
+            if (_route is { Success: true })
+                Plan.Route = _route.Plan;
+        }
     }
 
 }
