@@ -332,7 +332,7 @@ public class FlightPlanValidationController
                                     segmentResult.StateDetails = "Initial waypoint does not match selected SID";
                                 }
                         }
-                        else if (departingAerodrome.Location.GetDistance(point.Location) > 50)
+                        else if (!departingAerodrome.PointHasSid(point) && departingAerodrome.Location.GetDistance(point.Location) > 50)
                         {
                             segmentResult.State = ValidationState.WARNING;
                             segmentResult.StateDetails = "Initial waypoint is greater than 50NM from departure airport";
@@ -542,6 +542,7 @@ public class FlightPlanValidationController
                 {
                     var segmentResult = waypoint ? segmentResults[^2] : segmentResults.Last();
                     if (segmentResult.State == ValidationState.VALID &&
+                        !destinationAerodrome.PointHasStar(waypoints.Last().Code) &&
                         waypoints.Last().Location.GetDistance(destinationAerodrome.Location) > 50)
                     {
                         waypoints.Last().Type = WaypointType.WARNING;
@@ -556,8 +557,9 @@ public class FlightPlanValidationController
                     Location = destinationAerodrome.Location,
                     Type = WaypointType.AIRPORT
                 });
-            
-                routeMap.Add(destinationAerodrome.Location);
+                
+                if(!invalid)
+                    routeMap.Add(destinationAerodrome.Location);
             }
         }
 

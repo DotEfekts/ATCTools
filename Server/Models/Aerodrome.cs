@@ -29,4 +29,14 @@ public class Aerodrome : ICodePoint
     public List<AerodromeChart> Charts { get; }
     public List<AerodromeSid> Sids { get; }
     public List<AerodromeStar> Stars { get; }
+
+    public bool PointHasSid(ICodePoint point) => PointHasSid(point.Code);
+    
+    public bool PointHasSid(string code)
+        => Sids.Any(s => s.Point?.Code == code || s.Transitions.Any(t => t.Point?.Code == code));
+
+    public bool PointHasStar(ICodePoint point) => PointHasStar(point.Code);
+    
+    public bool PointHasStar(string code)
+        => Stars.Any(s => s.Point.Code == code || s.Transitions.Any(t => t.Point.Code == code));
 }

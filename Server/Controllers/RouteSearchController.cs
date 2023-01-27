@@ -78,7 +78,7 @@ public class RouteSearchController
             openList.Remove(current);
 
             if ((endPoints != null && endPoints.Any(p => p == current.Point)) ||
-                current.Point.Location.GetDistance(destinationAerodrome.Location) < 5)
+                (endPoints == null && current.Point.Location.GetDistance(destinationAerodrome.Location) < 5))
                 break;
             
             var traversalPoints = current.Point.AirwayPoints
@@ -109,28 +109,28 @@ public class RouteSearchController
                 
                 if (closedList.Any(l => l.PointAirwayCode == code))
                     continue;
+
+                var switchingAirway = current.LastAirway != traversalPoint.Airway.Code;
+                var weightedLegDistance = traversalPoint.AirwayLeg.Distance *
+                                        (traversalPoint.AirwayLeg.Level == AirwayLegLevel.LOW ? 1.1 : 1) *
+                                        (switchingAirway ? 1.1 : 1);
  
                 if (openList.All(l => l.PointAirwayCode != code))
-                {
-                    var airways = current.Airways + (current.LastAirway != traversalPoint.Airway.Code ? 1 : 0);
                     openList.Insert(0, 
                         new AirwaySearch (
                             current,
                             traversalPoint.AirwayPoint.Point,
                             code,
                             traversalPoint.Airway.Code,
-                            airways,
-                            current.CurrentDistance + traversalPoint.AirwayLeg.Distance,
-                            current.CurrentDistance +
-                            airways * AverageLegDistance +
-                            traversalPoint.AirwayLeg.Distance * (traversalPoint.AirwayLeg.Level == AirwayLegLevel.LOW ? 1.5 : 1) + 
+                            current.Airways + (switchingAirway ? 1 : 0),
+                            current.CurrentDistance + weightedLegDistance,
+                            current.CurrentDistance + weightedLegDistance + 
                             traversalPoint.AirwayPoint.Point.Location.GetDistance(destinationAerodrome.Location)
                         ));
-                }
                 else
                 {
                     var search = openList.First(l => l.PointAirwayCode == code);
-                    if (search.CurrentDistance > current.CurrentDistance + traversalPoint.AirwayLeg.Distance)
+                    if (search.CurrentDistance > current.CurrentDistance + weightedLegDistance)
                         search.Parent = current;
                 }
             }
