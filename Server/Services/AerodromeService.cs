@@ -280,7 +280,8 @@ public class AerodromeService
 
         foreach (var sid in sids)
         {
-            sid.Point = codepointService.GetCodepoint(sid.Code);
+            if(sid.DepartureCode != null)
+                sid.Point = codepointService.GetCodepoint(sid.DepartureCode);
             foreach (var transition in sid.Transitions.Where(t => t.Code != null))
                 transition.Point = codepointService.GetCodepoint(transition.Code!);
         }

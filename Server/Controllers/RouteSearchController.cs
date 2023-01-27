@@ -51,7 +51,7 @@ public class RouteSearchController
             .Distinct().ToList() : null;
         
         if (!startPoints.Any())
-            return new GeneratedRoute()
+            return new GeneratedRoute
             {
                 Success = false,
                 Message = "Unable to locate entry points near aerodrome."
