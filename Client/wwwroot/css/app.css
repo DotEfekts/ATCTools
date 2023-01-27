@@ -1,0 +1,19 @@
+﻿html, body, #app {
+    height: 1px;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.ext-frame.dark-mode {
+    filter: invert(0.9) hue-rotate(162deg);
+}
+
+.validation-message {
+    text-align: center;
+}
+
+.px-expand-panel-header .mud-expand-panel-header {
+    padding-left: 0;
+    padding-right: 0;
+}

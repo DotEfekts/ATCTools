@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="aerodromes" type="aerodromesType"/>
+  <xs:complexType name="locationType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="lat" use="required"/>
+        <xs:attribute type="xs:string" name="long" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="aerodromeType">
+    <xs:sequence>
+      <xs:element type="locationType" name="location"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="name" use="required"/>
+    <xs:attribute type="xs:string" name="state" use="optional"/>
+    <xs:attribute type="xs:string" name="code" use="required"/>
+    <xs:attribute type="xs:string" name="parent" use="optional"/>
+    <xs:attribute type="xs:string" name="sop" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="aerodromesType">
+    <xs:sequence>
+      <xs:element type="aerodromeType" name="aerodrome" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

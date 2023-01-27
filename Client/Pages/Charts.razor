@@ -1,0 +1,94 @@
+@page "/charts"
+@using ATCTools.Client.Services
+@using ATCTools.Shared.Models
+@using System.Web
+@using Microsoft.Extensions.Logging.Abstractions
+@inject AerodromeService AerodromeService
+@inject HttpClient HttpClient
+
+<div class="d-flex ma-4" style="height: calc(100% - 32px);">
+    <div class="left-container d-flex flex-column" style="width: 500px;">
+        <div>
+            
+            <MudAutocomplete T="ClientAerodrome" Label="Charts For"
+                             Value="_selectedAerodrome" MaxItems="null" ValueChanged="AerodromeChanged"
+                             SearchFuncWithCancel="SearchAerodromes" Converter="aerodromeConverter"
+                             Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"/>
+            <MudTextField @bind-Value="_search" Label="Search" Class="mt-4" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"></MudTextField>
+        </div>
+        @if (_selectedAerodrome != null)
+        {
+            <MudPaper Class="mt-4" Outlined="true" Style="overflow-y: auto; flex: 1;">
+                <MudList Clickable="true" Dense="true">
+                    @if (_selectedAerodrome.Charts.Length == 0)
+                    {
+                        <MudListItem>
+                            No charts available for selected aerodrome
+                        </MudListItem>
+                        <MudDivider />
+                    }
+                    else
+                    {
+                        foreach (var chart in _selectedAerodrome.Charts.Where(c => c.Name.Contains(_search ?? "", StringComparison.InvariantCultureIgnoreCase)))
+                        {
+                            <MudListItem OnClick="() => _selectedChart = chart">
+                                <MudText Typo="Typo.body2">@chart.Name</MudText>
+                                <MudText Typo="Typo.subtitle2">@chart.Updated (Am @chart.Amendment)</MudText>
+                            </MudListItem>
+                            <MudDivider />
+                        }
+                    }
+                </MudList>
+            </MudPaper>
+        }
+    </div>
+    <MudPaper Class="right-container flex-1 mx-16 d-flex justify-center" Outlined="true">
+        @if (_selectedChart == null)
+        {
+            <MudText Typo="Typo.h4" Class="mt-8">Please select a chart</MudText>
+        }
+        else
+        {
+            <iframe style="height: 100%; width: 100%;" src="@(CHART_BASE_URL + _selectedChart.Path)" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private const string CHART_BASE_URL = "https://www.airservicesaustralia.com/aip/current/dap/";
+    
+    private ClientAerodrome? _selectedAerodrome = null;
+    private ClientAerodromeChart? _selectedChart = null;
+    private string? _search = null;
+    
+    [CascadingParameter(Name = "DarkMode")]
+    protected bool? DarkMode { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _selectedAerodrome = AerodromeService.SelectedAerodrome;
+    }
+
+    private void AerodromeChanged(ClientAerodrome? clientAerodrome)
+    {
+        _selectedAerodrome = clientAerodrome;
+        _search = "";
+        StateHasChanged();
+    }
+
+    private async Task<IEnumerable<ClientAerodrome>>  SearchAerodromes(string search, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(search) || (_selectedAerodrome != null && search == aerodromeConverter.Set(_selectedAerodrome)))
+            return AerodromeService.DefaultAerodromes ?? Array.Empty<ClientAerodrome>();
+        
+        var result = await HttpClient.GetFromJsonAsync<IEnumerable<ClientAerodrome>>($"AerodromeSearch?search={HttpUtility.UrlEncode(search)}", cancellationToken);
+        return result ?? Array.Empty<ClientAerodrome>();
+    }
+
+    private readonly Converter<ClientAerodrome> aerodromeConverter = new()
+    {
+        SetFunc = val => val.Name + " (" + val.Code + ")",
+        GetFunc = val => throw new NotImplementedException()
+    };
+}

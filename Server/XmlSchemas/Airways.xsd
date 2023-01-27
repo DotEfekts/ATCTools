@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="airways" type="airwaysType"/>
+  <xs:complexType name="locationType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="lat" use="required"/>
+        <xs:attribute type="xs:string" name="long" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="trackType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="out" use="optional"/>
+        <xs:attribute type="xs:string" name="in" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="waypointType">
+    <xs:sequence>
+      <xs:element type="locationType" name="location"/>
+      <xs:element type="trackType" name="track"/>
+      <xs:element type="lsaltType" name="lsalt" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="name" use="required"/>
+    <xs:attribute type="xs:string" name="type" use="required"/>
+    <xs:attribute type="xs:string" name="dist" use="optional"/>
+    <xs:attribute type="xs:string" name="level" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="lsaltType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="in" use="required"/>
+        <xs:attribute type="xs:string" name="out" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="airwayType">
+    <xs:sequence>
+      <xs:element type="waypointType" name="waypoint" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="name" use="required"/>
+    <xs:attribute type="xs:string" name="two-way" use="required"/>
+    <xs:attribute type="xs:string" name="limited-segment" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="airwaysType">
+    <xs:sequence>
+      <xs:element type="airwayType" name="airway" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

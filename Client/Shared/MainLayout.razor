@@ -1,0 +1,102 @@
+﻿@using ATCTools.Shared.Models
+@using System.Web
+@using ATCTools.Client.Services
+@using Blazored.LocalStorage
+@inherits LayoutComponentBase
+
+@inject HttpClient HttpClient
+@inject AerodromeService AerodromeService
+@inject ILocalStorageService LocalStorage
+
+<MudThemeProvider IsDarkMode="_darkMode" Theme="_customTheme" />
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+<MudLayout>
+    <MudAppBar Color="Color.Transparent" Elevation="0" Class="border-solid" Style="
+        border-color: var(--mud-palette-divider); 
+        border-bottom-width: 1px;
+        background-color: var(--mud-palette-background) !important;">
+        <MudText Typo="Typo.h4" Class="mr-4 cursor-default">ATCTools</MudText>
+        <NavMenu></NavMenu>
+        <MudSpacer></MudSpacer>
+        @if (AerodromeService.DefaultAerodromes == null)
+        {
+            <MudSkeleton></MudSkeleton>
+        }
+        else
+        {
+            <div>
+                <MudAutocomplete T="ClientAerodrome" Label="Controlling Aerodrome" 
+                                 ValueChanged="SelectionChanged" MaxItems="null" Value="AerodromeService.SelectedAerodrome"
+                                 SearchFuncWithCancel="SearchAerodromes" Converter="aerodromeConverter"
+                                 Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense" />
+            </div>
+        }
+        <MudDivider Vertical="true" Class="mx-4" Style="height: calc(100% - 2rem);"></MudDivider>
+        <MudToggleIconButton Toggled="_darkMode" ToggledChanged="ChangeDarkMode"
+                             Icon="@Icons.Material.Outlined.DarkMode"
+                             ToggledIcon="@Icons.Material.Outlined.LightMode"></MudToggleIconButton>
+    </MudAppBar>
+    <CascadingValue Value="@_darkMode" Name="DarkMode">
+        <MudMainContent Style="height: 100%">
+            @Body
+        </MudMainContent>
+    </CascadingValue>
+</MudLayout>
+
+@code {
+    private bool _darkMode;
+
+    private MudTheme _customTheme = new()
+    {
+        LayoutProperties = new LayoutProperties
+        {
+          DefaultBorderRadius  = "6px"
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if(await LocalStorage.ContainKeyAsync("darkMode"))
+            _darkMode = await LocalStorage.GetItemAsync<bool>("darkMode");
+        
+        StateHasChanged();
+    }
+
+    private async Task ChangeDarkMode(bool enabled)
+    {
+        _darkMode = enabled;
+        await LocalStorage.SetItemAsync("darkMode", enabled);
+        
+        StateHasChanged();
+    }
+
+    private async Task SelectionChanged(ClientAerodrome? selection)
+    {
+        if(selection == null)
+            await LocalStorage.RemoveItemAsync("selectedAerodrome");
+        else
+            await LocalStorage.SetItemAsync("selectedAerodrome", selection.Code);
+
+        AerodromeService.SetValue(selection);
+    }
+    
+    private async Task<IEnumerable<ClientAerodrome>>  SearchAerodromes(string search, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(search) || (AerodromeService.SelectedAerodrome != null && search == aerodromeConverter.Set(AerodromeService.SelectedAerodrome)))
+            return AerodromeService.DefaultAerodromes ?? Array.Empty<ClientAerodrome>();
+        
+        var result = await HttpClient.GetFromJsonAsync<IEnumerable<ClientAerodrome>>($"AerodromeSearch?search={HttpUtility.UrlEncode(search)}", cancellationToken);
+        return result ?? Array.Empty<ClientAerodrome>();
+    }
+
+    private readonly Converter<ClientAerodrome> aerodromeConverter = new()
+    {
+        SetFunc = val => val.Name + " (" + val.Code + ")",
+        GetFunc = val => throw new NotImplementedException()
+    };
+
+}

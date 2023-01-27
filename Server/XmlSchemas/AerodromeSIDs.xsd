@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="aerodromes" type="aerodromesType"/>
+  <xs:complexType name="sidType" mixed="true">
+    <xs:sequence>
+      <xs:element type="departureType" name="departure" minOccurs="0" />
+      <xs:element type="transitionType" name="transition" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="name" use="required"/>
+    <xs:attribute type="xs:string" name="code" use="required"/>
+    <xs:attribute type="xs:string" name="radar" use="optional"/>
+    <xs:attribute type="xs:string" name="runway" use="required"/>
+    <xs:attribute type="xs:string" name="aircraft-type" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="departureType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="type" use="required"/>
+        <xs:attribute type="xs:string" name="code" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="aerodromeType">
+    <xs:sequence>
+      <xs:element type="sidType" name="sid" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="code" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="transitionType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="type" use="required"/>
+        <xs:attribute type="xs:string" name="code" use="optional"/>
+        <xs:attribute type="xs:string" name="track" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="aerodromesType">
+    <xs:sequence>
+      <xs:element type="aerodromeType" name="aerodrome" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

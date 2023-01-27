@@ -1,0 +1,14 @@
+namespace ATCTools.Shared.Models;
+
+public enum State
+{
+    NEW_SOUTH_WALES,
+    VICTORIA,
+    QUEENSLAND,
+    WESTERN_AUSTRALIA,
+    SOUTH_AUSTRALIA,
+    TASMANIA,
+    AUSTRALIAN_CAPITAL_TERRITORY,
+    NORTHERN_TERRITORY,
+    OTHER
+}

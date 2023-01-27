@@ -1,0 +1,44 @@
+@page "/sop"
+@using ATCTools.Shared.Models
+@using ATCTools.Client.Services
+@inject AerodromeService AerodromeService
+
+@if (_selectedAerodrome == null)
+{
+    <div class="d-flex mt-16 justify-center">
+        <MudText Typo="Typo.h4">No aerodrome selected</MudText>
+    </div>
+}
+else if (string.IsNullOrWhiteSpace(_selectedAerodrome.SoP))
+{
+    <div class="d-flex mt-16 justify-center">
+        <MudText Typo="Typo.h4">Aerodrome does not have standard operating proceedures</MudText>
+    </div>
+}
+else
+{
+    <div class="d-flex" style="height: 100%;">
+        <iframe src="@_selectedAerodrome.SoP" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
+    </div>
+}
+
+@code {
+    private ClientAerodrome? _selectedAerodrome = null;
+    
+    [CascadingParameter(Name = "DarkMode")]
+    protected bool? DarkMode { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _selectedAerodrome = AerodromeService.SelectedAerodrome;
+        AerodromeService.OnStateChange += SelectedAerodromeChanged;
+        StateHasChanged();
+    }
+
+    private void SelectedAerodromeChanged(ClientAerodrome? aerodrome)
+    {
+        _selectedAerodrome = aerodrome;
+        StateHasChanged();
+    }
+}
