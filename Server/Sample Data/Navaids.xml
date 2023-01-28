@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<navaids>
+    <navaid name="WOLLONGONG" type="NDB" code="WOL">
+        <location lat="343328.6S" long="1504727.6E" />
+    </navaid>
+    <navaid name="CANBERRA" type="VOR" code="CB">
+        <location lat="351653.2S" long="1491144.6E" />
+    </navaid>
+    <navaid name="MELBOURNE" type="VOR" code="ML">
+        <location lat="373936.5S" long="1445031.2E" />
+    </navaid>
+</navaids>

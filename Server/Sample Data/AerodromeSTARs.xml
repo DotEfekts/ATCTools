@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aerodromes>
+    <aerodrome code="YSSY">
+        <star name="RIVET THREE" code="RIVET3" runway="07|16L|16R|25|34L|34R" waypoint="RIVET" aircraft-type="b" />
+    </aerodrome>
+    <aerodrome code="YMML">
+        <star name="LIZZI EIGHT ALPHA" code="LIZZI8A" runway="09|16|27|34" waypoint="LIZZI" aircraft-type="b" />
+        <star name="LIZZI EIGHT VICTOR" code="LIZZI8V" runway="34" waypoint="LIZZI" aircraft-type="b" />
+    </aerodrome>
+</aerodromes>

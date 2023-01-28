@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<waypoints>
+	<waypoint name="TESAT">
+		<location lat="335637.7S" long="1511057.3E" />
+	</waypoint>
+	<waypoint name="RAZZI">
+		<location lat="350315.1S" long="1495737.3E" />
+	</waypoint>
+	<waypoint name="TANTA">
+		<location lat="355250.4S" long="1483154.3E" />
+	</waypoint>
+	<waypoint name="RUMIE">
+		<location lat="361947.3S" long="1474342.5E" />
+	</waypoint>
+	<waypoint name="NABBA">
+		<location lat="364219.2S" long="1470231.4E" />
+	</waypoint>
+	<waypoint name="BULLA">
+		<location lat="370440.1S" long="1462049.6E" />
+	</waypoint>
+	<waypoint name="LUVAS">
+		<location lat="371821.5S" long="1455451.1E" />
+	</waypoint>
+	<waypoint name="LIZZI">
+		<location lat="372702.2S" long="1453816.8E" />
+	</waypoint>
+	<waypoint name="DOSEL">
+		<location lat="370954.4S" long="1452343.1E" />
+	</waypoint>
+	<waypoint name="EBONY">
+		<location lat="361056.5S" long="1470414.3E" />
+	</waypoint>
+	<waypoint name="ARRAN">
+		<location lat="355015.2S" long="1473821.8E" />
+	</waypoint>
+	<waypoint name="NONUP">
+		<location lat="352550.1S" long="1481755.8E" />
+	</waypoint>
+	<waypoint name="CULIN">
+		<location lat="344424.0S" long="1492324.0E" />
+	</waypoint>
+	<waypoint name="TARAL">
+		<location lat="343006.6S" long="1495600.5E" />
+	</waypoint>
+	<waypoint name="RIVET">
+		<location lat="341650.7S" long="1502549.1E" />
+	</waypoint>
+</waypoints>

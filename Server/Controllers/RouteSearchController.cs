@@ -69,6 +69,7 @@ public class RouteSearchController
         var closedList = new List<AirwaySearch>();
 
         AirwaySearch? current = null;
+        AirwaySearch? final = null;
         
         while (openList.Count > 0)
         {
@@ -79,7 +80,10 @@ public class RouteSearchController
 
             if ((endPoints != null && endPoints.Any(p => p == current.Point)) ||
                 (endPoints == null && current.Point.Location.GetDistance(destinationAerodrome.Location) < 5))
+            {
+                final = current;
                 break;
+            }
             
             var traversalPoints = current.Point.AirwayPoints
                 .Where(p => p.NextLeg != null)
@@ -136,21 +140,21 @@ public class RouteSearchController
             }
         }
 
-        if (current != null && openList.Count > 0)
+        if (final != null)
         {
             var segments = new List<string>();
             var lastAirway = "";
-            while (current != null)
+            while (final != null)
             {
-                if (current.LastAirway != lastAirway)
+                if (final.LastAirway != lastAirway)
                 {
-                    segments.Add(current.Point.Code);
-                    if(!string.IsNullOrWhiteSpace(current.LastAirway))
-                        segments.Add(current.LastAirway);
-                    lastAirway = current.LastAirway;
+                    segments.Add(final.Point.Code);
+                    if(!string.IsNullOrWhiteSpace(final.LastAirway))
+                        segments.Add(final.LastAirway);
+                    lastAirway = final.LastAirway;
                 }
 
-                current = current.Parent;
+                final = final.Parent;
             }
             segments.Reverse();
             

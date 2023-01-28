@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aerodromes>
+    <aerodrome code="YSSY">
+        <sid name="SYDNEY (SY) TWO" code="SY2" radar="true" runway="07|16L|16R|25|34L|34R" aircraft-type="b" />
+        <sid name="WOLLONGONG (WOL) TWO" code="WOL2" runway="34L" aircraft-type="j">
+            <departure type="nav" code="WOL" />
+        </sid>
+        <sid name="DEENA SEVEN" code="DEENA7" runway="16R" aircraft-type="j">
+            <departure type="nav" code="DEENA" />
+            <transition type="nav" code="KADOM" />
+            <transition type="nav" code="RIC" />
+            <transition type="nav" code="WOL" />
+        </sid>
+    </aerodrome>
+    <aerodrome code="YMML">
+        <sid name="MELBOURNE (ML) SIX" code="ML6" radar="true" runway="09|16|27|34" aircraft-type="b" />
+        <sid name="DOSEL ONE" code="DOSEL1" runway="16|27|34" aircraft-type="j">
+            <departure type="nav" code="DOSEL" />
+        </sid>
+    </aerodrome>
+</aerodromes>

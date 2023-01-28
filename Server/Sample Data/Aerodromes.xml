@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<aerodromes>
+<aerodrome name="MELBOURNE" state="VIC" code="YMML" sop="https://sops.vatpac.org/aerodromes/Melbourne/">
+	<location lat="374024S" long="1445036E" />
+</aerodrome>
+<aerodrome name="KINGSFORD SMITH" state="NSW" code="YSSY" parent="SYDNEY" sop="https://sops.vatpac.org/aerodromes/sydney/">
+	<location lat="335646S" long="1511038E" />
+</aerodrome>
+</aerodromes>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<aerodromes>
+<aerodrome code="YMML" name="MELBOURNE" parent="">
+    <chart name="AERODROME CHART PAGE 1" path="MMLAD01-171_01DEC2022.pdf" updated="16-Jun-2022" am="171"  />
+    <chart name="SID MELBOURNE SIX DEPARTURE (RADAR)" path="MMLDP01-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+    <chart name="SID RWYS NORTH EAST (JET) (RNAV)" path="MMLDP02-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+    <chart name="STAR LIZZI EIGHT A ARR (RNAV) RWY 09/34" path="MMLSR25-172_01DEC2022.pdf" updated="8-Sep-2022" am="172"  />
+    <chart name="STAR LIZZI EIGHT A ARR (RNAV) RWY 16/27" path="MMLSR27-169_01DEC2022.pdf" updated="2-Dec-2021" am="169"  />
+    <chart name="STAR LIZZI EIGHT V ARR (RNAV)" path="MMLSR08-172_01DEC2022.pdf" updated="8-Sep-2022" am="172"  />
+</aerodrome>
+<aerodrome code="YSSY" name="KINGSFORD SMITH" parent="SYDNEY">
+    <chart name="AERODROME CHART PAGE 1" path="SSYAD01-173_01DEC2022.pdf" updated="1-Dec-2022" am="173"  />
+    <chart name="SID SYDNEY TWO DEPARTURE (RADAR)" path="SSYDP12-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+    <chart name="SID RWY 34L SOUTH WEST DEP (JET)" path="SSYDP05-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+    <chart name="SID RWY 16R DEENA SEVEN (JET) (RNAV)" path="SSYDP04-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+    <chart name="STAR RIVET THREE ARRIVAL (RNAV)" path="SSYSR05-170_01DEC2022.pdf" updated="24-Mar-2022" am="170"  />
+</aerodrome>
+</aerodromes>

@@ -301,8 +301,8 @@ public class FlightPlanValidationController
                     {
                         if(lastSegment is SidPlanSegment { Sid.Radar: false } sidSegment)
                         {
-                            var waypoint = segment.Code;
-                            var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.Code });
+                            var waypoint = codepoint.Code;
+                            var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.DepartureCode });
 
                             if (transitions.All(t => t != waypoint))
                             {
@@ -367,9 +367,9 @@ public class FlightPlanValidationController
                     {
                         if (lastSegment is StarPlanSegment starSegment)
                         {
-                            var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == segment.Code);
+                            var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == codepoint.Code);
 
-                            if (selectedTransition == null && starSegment.Star.Code != segment.Code)
+                            if (selectedTransition == null && starSegment.Star.ArrivalCode != codepoint.Code)
                             {
                                 segment.State = ValidationState.INVALID;
                                 segment.ValidationMessage = "Invalid waypoint specified for selected STAR";
