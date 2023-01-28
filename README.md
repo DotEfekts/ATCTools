@@ -158,18 +158,18 @@ The `lat` and `long` attributes should be formatted as `000000.0N`, `0000000.0W`
 
 ```xml
 <waypoints>
-  <waypoints name="<Waypoint Name>">
+  <waypoint name="<Waypoint Name>">
 	  <location lat="<Latitude>" long="<Longitude>" />
-  </waypoints>
+  </waypoint>
 </waypoints>
 ```
 
 e.g.
 ```xml
 <waypoints>
-  <waypoints name="TESAT">
+  <waypoint name="TESAT">
 	  <location lat="335637.7S" long="1511057.3E" />
-  </waypoints>
+  </waypoint>
 </waypoints>
 ```
 
@@ -185,8 +185,8 @@ The `lat` and `long` attributes should be formatted as `000000.0N`, `0000000.0W`
 <navaids>
   <navaid name="<Navaid Name>" type="<Navaid Type>" code="<Navaid Code>">
 	  <location lat="<Latitude>" long="<Longitude>" />
-  </waypoints>
-</waypoints>
+  </navaid>
+</navaids>
 ```
 
 e.g.
@@ -198,7 +198,7 @@ e.g.
   <navaid name="MELBOURNE" type="VOR" code="ML">
     <location lat="373936.5S" long="1445031.2E" />
   </navaid>
-</waypoints>
+</navaids>
 ```
 
 ### `Airways.xml`
