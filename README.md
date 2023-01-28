@@ -1,5 +1,6 @@
 # ATCTools
-Assistant tools for VATPAC (VATSIM) ATC clearance and operation
+Assistant tools for VATPAC (VATSIM) ATC clearance and operation.
+**For simulation use only**
 
 ## Features
 ATCTools has three main sections available
@@ -25,7 +26,7 @@ The primary function of the application. This page will allow you to validate a 
 
 It supports validation of SIDs, STARs, airways (including direction), waypoints and navaids, and coordinates.
 
-It has been built for Australian, however in theory you could use it for anywhere you have the data for.
+It has been built for Australian airspace, however in theory you could use it for anywhere you have the data for.
 
 <img width="1920" alt="Screen Shot 2023-01-28 at 7 46 54 pm" src="https://user-images.githubusercontent.com/1389365/215265527-f72a567c-29b8-4859-a240-2f364bbfe07c.png">
 
@@ -58,7 +59,7 @@ e.g.
 
 ### `AerodromeCharts.xml`
 The `AerodromeCharts.xml` contains information on each chart you want to add to an aerodrome for the Charts section.
-The `name` attribute is required per the XSD but is currently unused.
+The aerodrome `name` attribute is required per the XSD but is currently unused.
 The `parent` attribute for a city/area can be added but is currently unused.
 
 ```xml
