@@ -197,30 +197,47 @@
             }
             else
             {
-                <div class="plan-validation-results">
-                    <div class="d-flex mb-4 justify-center flex-wrap">
-                        <MudText Class="plan-segment mr-4" Typo="Typo.h6" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.Segment</MudText>
-                        <span> </span>
+                <div class="plan-validation-results" style="width: 100%">
+                    <div class="d-flex justify-space-between">
+                        <MudText Class="plan-segment mr-4" Typo="Typo.h5" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.Segment</MudText>
+                        <MudText class="plan-segment ml-4" Typo="Typo.h5" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.Segment</MudText>
+                    </div>
+                    <div class="flex-1 d-flex justify-center mb-2">
                         @foreach (var segment in _result.SegmentValidationResults)
                         {
-                            <MudText class="plan-segment mx-2" Typo="Typo.h6" Color="@GetStateColor(segment.State)">@segment.Segment</MudText>
-                            <span> </span>
+                            <MudText class="plan-segment mx-2" Typo="Typo.body1" Color="@GetStateColor(segment.State)"><b>@segment.Segment</b></MudText>
                         }
-                        <MudText class="plan-segment ml-4" Typo="Typo.h6" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.Segment</MudText>
+                        
+                        <MudTooltip Text="Copied" ShowOnHover="false" ShowOnFocus="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                           Title="Copy" OnClick="CopyPlan" tabindex="-1"></MudIconButton>
+                        </MudTooltip>
                     </div>
-
-                    @if (!string.IsNullOrWhiteSpace(_result.DepartingAirport.StateDetails))
-                    {
-                        <MudText class="validation-message" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.StateDetails</MudText>
-                    }
-                    @foreach (var segment in _result.SegmentValidationResults.Where(s => !string.IsNullOrWhiteSpace(s.StateDetails)))
-                    {
-                        <MudText class="validation-message" Color="@GetStateColor(segment.State)">@segment.StateDetails</MudText>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(_result.DestinationAirport.StateDetails))
-                    {
-                        <MudText class="validation-message" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.StateDetails</MudText>
-                    }
+                    <div class="d-flex align-center flex-column mb-2">
+                        @if (!string.IsNullOrWhiteSpace(_result.DepartingAirport.StateDetails))
+                        {
+                            <MudText class="validation-message" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.StateDetails</MudText>
+                        }
+                        @foreach (var segment in _result.SegmentValidationResults.Where(s => !string.IsNullOrWhiteSpace(s.StateDetails)))
+                        {
+                            <MudText class="validation-message" Color="@GetStateColor(segment.State)">@segment.StateDetails</MudText>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_result.DestinationAirport.StateDetails))
+                        {
+                            <MudText class="validation-message" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.StateDetails</MudText>
+                        }
+                        @if (_result.DctCollapse != null)
+                        {
+                            <MudText Typo="Typo.body1"><b>Airway alternative found</b></MudText><br/>
+                            <div>
+                                <MudText Typo="Typo.overline"><b>@_result.DctCollapse</b></MudText>
+                                <MudTooltip Text="Copied" ShowOnHover="false" ShowOnFocus="true">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                                   Title="Copy" OnClick="CopyCollapsePlan" tabindex="-1"></MudIconButton>
+                                </MudTooltip>
+                            </div>
+                        }
+                    </div>
                 </div>
                 <div class="flex-grow-1" style="width: 100%;" id="route-map"></div>
             }
@@ -255,6 +272,16 @@
         _route = null;
     }
 
+    private async Task CopyPlan()
+    {
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", string.Join(' ', _result.SegmentValidationResults.Select(s => s.Segment)));
+    }
+
+    private async Task CopyCollapsePlan()
+    {
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", _result.DctCollapse);
+    }
+
     private CancellationTokenSource? tokenSource;
     private async Task DepartingChanged(string val)
     {
@@ -275,7 +302,7 @@
         StateHasChanged();
     }
     
-    private async Task DestinationChanged(string val)
+    private void DestinationChanged(string val)
     {
         Plan.DestinationAirport = val;
         _destinationInfo = NameService.GetAirport(val);
@@ -299,21 +326,39 @@
             await JsRuntime.InvokeVoidAsync("AddLine", 
                 _result.RouteMap.Select(l => new [] {l.Latitude, l.Longitude}).ToArray(), 
                 "var(--mud-palette-success)");
-            
-            foreach (var waypoint in _result.Waypoints)
+
+            if (_result.DepartingAirport.Location != null)
             {
                 await JsRuntime.InvokeVoidAsync("AddWaypoint", 
-                    waypoint.Location.Latitude, 
+                    _result.DepartingAirport.Location!.Latitude, 
+                    _result.DepartingAirport.Location.Longitude, 
+                    _result.DepartingAirport.Segment, 
+                    "var(--mud-palette-info)");
+            }
+            
+            foreach (var waypoint in _result.SegmentValidationResults.Where(s => s.Location != null))
+            {
+                await JsRuntime.InvokeVoidAsync("AddWaypoint", 
+                    waypoint.Location!.Latitude, 
                     waypoint.Location.Longitude, 
-                    waypoint.Code, 
-                    waypoint.Type switch
+                    waypoint.MapCode, 
+                    waypoint.State switch
                     {
-                        WaypointType.STANDARD => "var(--mud-palette-success)",
-                        WaypointType.AIRSPACE_BORDER => "var(--mud-palette-info)",
-                        WaypointType.WARNING => "var(--mud-palette-warning)",
-                        WaypointType.ERROR => "var(--mud-palette-error)",
+                        ValidationState.VALID => "var(--mud-palette-success)",
+                        ValidationState.INTERNATIONAL => "var(--mud-palette-info)",
+                        ValidationState.WARNING => "var(--mud-palette-warning)",
+                        ValidationState.INVALID => "var(--mud-palette-error)",
                         _ => "var(--mud-palette-primary)"
                     });
+            }
+
+            if (_result.DestinationAirport.Location != null)
+            {
+                await JsRuntime.InvokeVoidAsync("AddWaypoint", 
+                    _result.DestinationAirport.Location!.Latitude, 
+                    _result.DestinationAirport.Location.Longitude, 
+                    _result.DestinationAirport.Segment, 
+                    "var(--mud-palette-info)");
             }
 
             await JsRuntime.InvokeVoidAsync("ScrollToView");

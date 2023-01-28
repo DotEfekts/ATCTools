@@ -1,7 +1,7 @@
+using System.Text.RegularExpressions;
 using ATCTools.Server.Models;
 using ATCTools.Server.Services;
 using Microsoft.AspNetCore.Mvc;
-using ATCTools.Shared;
 using ATCTools.Shared.Models;
 
 namespace ATCTools.Server.Controllers;
@@ -10,18 +10,19 @@ namespace ATCTools.Server.Controllers;
 [Route("[controller]")]
 public class FlightPlanValidationController
 {
-    private readonly ILogger<FlightPlanValidationController> _logger;
     private readonly AirwayService _airwayService;
     private readonly AerodromeService _aerodromeService;
     private readonly CodepointService _codepointService;
     
+    private static readonly Regex CoordRegex = new Regex(@"^(\d{2})(\d{2})?(\d{2})?(N|S)(\d{3})(\d{2})?(\d{2})?(E|W)$");
+    private static readonly Regex LevelAndSpeedRegex = new Regex(@"^((N|K)(\d{4})|M(\d{3}))((F|A)(\d{3})|(S|M)(\d{4}))$");
+    private static readonly Regex AirwayCollapseRegex = new Regex(@"^(.*?)<AWC>([^ ]+) ([^ /]+) <AWC>([^ ]+)(.*)$");
+    
     public FlightPlanValidationController(
-        ILogger<FlightPlanValidationController> logger,
         AirwayService airwayService,
         AerodromeService aerodromeService,
         CodepointService codepointService)
     {
-        _logger = logger;
         _airwayService = airwayService;
         _aerodromeService = aerodromeService;
         _codepointService = codepointService;
@@ -31,542 +32,589 @@ public class FlightPlanValidationController
     public PlanValidationResult CheckSegmentValidity(FlightPlan plan)
     {
         var segments = plan.Route.ToUpper().Split(' ');
-        var segmentResults = new List<PlanSegmentValidationResult>();
-
         plan.DepartingAirport = plan.DepartingAirport.ToUpper();
         plan.DestinationAirport = plan.DestinationAirport.ToUpper();
 
-        var result = new PlanValidationResult();
-
-        var routeMap = new List<Location>();
-        var waypoints = new List<PlanWaypoint>();
+        var segmentResults = new List<PlanSegmentValidation>();
 
         var departingAerodrome = _aerodromeService.GetAerodrome(plan.DepartingAirport);
         var destinationAerodrome = _aerodromeService.GetAerodrome(plan.DestinationAirport);
 
-        if (destinationAerodrome != null)
+        foreach (var x in segments)
         {
-            result.AvailableStars = destinationAerodrome.Stars.Select(s =>
-                new PlanStar
-                {
-                    Name = s.Name,
-                    AircraftType = s.AircraftType,
-                    Runways = s.Runways,
-                    Transitions = string.Join(' ',
-                        s.Transitions.Select(t =>
-                            t.Code + (t.Runways != null ? " (RWY " + t.Runways +")" : "") + 
-                            (t.AircraftType != AircraftType.BOTH ? t.AircraftType == AircraftType.JET ? " (JET)" : " (NON-JET)" : "")))
-                }).ToList();
-        }
-        
-        if (departingAerodrome == null)
-        {
-            result.DepartingAirport = new PlanSegmentValidationResult()
-            {
-                Segment = plan.DepartingAirport,
-                StateDetails = "Could not find aerodrome",
-                State = ValidationState.INVALID
-            };
-        }
-        else
-        {
-            result.AvailableSids = departingAerodrome.Sids.Select(s =>
-                new PlanSid
-                {
-                    Name = s.Name,
-                    AircraftType = s.AircraftType,
-                    Runways = s.Runways,
-                    IsRadar = s.Radar,
-                    Transitions = string.Join(' ',
-                        s.Transitions.Select(t =>
-                            t.Type == TransitionType.NAV ? t.Code : "RADAR" + (t.Track.HasValue ? "-" + t.Track : "")))
-                }).ToList();
-            
-            result.DepartingAirport = new PlanSegmentValidationResult()
-            {
-                Segment = plan.DepartingAirport
-            };
-            
-            waypoints.Add(new PlanWaypoint()
-            {
-                Code = plan.DepartingAirport,
-                Location = departingAerodrome.Location,
-                Type = WaypointType.AIRPORT
-            });
-            
-            routeMap.Add(departingAerodrome.Location);
-        }
-
-        var invalid = false;
-        var international = false;
-        var waypoint = true;
-        string? lastCodepoint = null;
-        AirwayPoint? entryPoint = null;
-        AerodromeSid? selectedSid = null;
-        AerodromeStar? selectedStar = null;
-        for (var i = 0; i < segments.Length; i++)
-        {
-            var segment = segments[i];
-            if(string.IsNullOrWhiteSpace(segment))
+            if(string.IsNullOrWhiteSpace(x))
                 continue;
             
-            if (i == 0 && segment.Contains('/'))
-            {
-                if (departingAerodrome == null)
-                {
-                    segmentResults.Add(new PlanSegmentValidationResult()
-                    {
-                        Segment = segment,
-                        State = ValidationState.UNVALIDATED
-                    });
-                    invalid = true;
-                    continue;
-                }
+            var segment = x;
+            string? secondaryInfo = null;
 
-                var sidCode = segment.Split('/');
-                selectedSid = departingAerodrome.Sids.FirstOrDefault(s => s.Code == sidCode[0]);
-                
-                if(selectedSid == null)
+            PlanSegmentValidation? segmentResult = null;
+
+            var last = segmentResults.LastOrDefault();
+            
+            if (segment is "IFR" or "VFR")
+            {
+                if (last == null)
                 {
-                    segmentResults.Add(new PlanSegmentValidationResult()
+                    segmentResult = new PlanSegmentValidation
                     {
-                        Segment = segment,
+                        Code = segment,
+                        Type = PlanSegmentType.UNKNOWN,
                         State = ValidationState.INVALID,
-                        StateDetails = "Invalid SID specified for departure aerodrome"
-                    });
-                    invalid = true;
-                    continue;
-                }
-
-                var rws = selectedSid.Runways.Split('|');
-                if (rws.All(r => sidCode[1] != r))
-                {
-                    segmentResults.Add(new PlanSegmentValidationResult()
-                    {
-                        Segment = segment,
-                        State = ValidationState.INVALID,
-                        StateDetails = "Invalid runway specified for SID"
-                    });
-                    invalid = true;
-                    continue;
-                }
-                
-                segmentResults.Add(new PlanSegmentValidationResult()
-                {
-                    Segment = segment
-                });
-                
-                continue;
-            }
-
-            if (i == segments.Length - 1)
-            {
-                var finalWaypoint = segment;
-                if (!waypoint && segment.Contains('/'))
-                {
-                    finalWaypoint = segments[i - 1];
-                    
-                    if (destinationAerodrome == null)
-                    {
-                        segmentResults.Add(new PlanSegmentValidationResult()
-                        {
-                            Segment = segment,
-                            State = ValidationState.UNVALIDATED
-                        });
-                        invalid = true;
-                        continue;
-                    }
-
-                    var starCode = segment.Split('/');
-                    selectedStar = destinationAerodrome.Stars.FirstOrDefault(s => s.Code == starCode[0]);
-                    
-                    if(selectedStar == null)
-                    {
-                        segmentResults.Add(new PlanSegmentValidationResult()
-                        {
-                            Segment = segment,
-                            State = ValidationState.INVALID,
-                            StateDetails = "Invalid STAR specified for departure aerodrome"
-                        });
-                        invalid = true;
-                        continue;
-                    }
-
-                    var selectedTransition = selectedStar.Transitions.FirstOrDefault(t => t.Code == finalWaypoint);
-
-                    if (selectedStar.ArrivalCode != segments[i - 1] && selectedTransition == null)
-                    {
-                        segmentResults.Add(new PlanSegmentValidationResult()
-                        {
-                            Segment = segment,
-                            State = ValidationState.INVALID,
-                            StateDetails = "Final waypoint does not match selected STAR"
-                        });
-                    }
-                    
-                    var rws = (selectedTransition?.Runways ?? selectedStar.Runways).Split('|');
-                    
-                    if (rws.All(r => starCode[1] != r))
-                    {
-                        segmentResults.Add(new PlanSegmentValidationResult()
-                        {
-                            Segment = segment,
-                            State = ValidationState.INVALID,
-                            StateDetails = "Invalid runway specified for STAR"
-                        });
-                        invalid = true;
-                    }
-                    
-                    segmentResults.Add(new PlanSegmentValidationResult()
-                    {
-                        Segment = segment
-                    });
-                }
-
-                if (destinationAerodrome != null)
-                {
-                    var matchingStars = destinationAerodrome.Stars
-                        .Where(s => s.ArrivalCode == finalWaypoint || s.Transitions.Any(t => t.Code == finalWaypoint));
-
-                    foreach (var star in matchingStars)
-                    {
-                        var matchingTransition = star.Transitions.FirstOrDefault(t => t.Code == finalWaypoint);
-                        var rws = matchingTransition?.Runways ?? star.Runways;
-                        result.AvailableStars.First(s => s.Name == star.Name).RouteWithStar =
-                            string.Join(' ', segments[..^(waypoint ? 0 : 1)]) + " " + star.Code + "/" + (rws.Contains('|') ? "<RWY>" : rws);
-                    }
-                }
-                
-                if(finalWaypoint != segment)
-                    continue;
-            }
-
-            if (invalid)
-            {
-                segmentResults.Add(new PlanSegmentValidationResult()
-                {
-                    Segment = segment,
-                    State = ValidationState.UNVALIDATED
-                });
-                continue;
-            } 
-            
-            if (international)
-            {
-                segmentResults.Add(new PlanSegmentValidationResult()
-                {
-                    Segment = segment,
-                    State = ValidationState.INTERNATIONAL
-                });
-                continue;
-            }
-            
-            if (i == 0 && segment == "DCT")
-            {
-                segmentResults.Add(new PlanSegmentValidationResult()
-                {
-                    Segment = segment
-                });
-                
-                continue;
-            }
-
-            var segmentResult = new PlanSegmentValidationResult
-            {
-                Segment = segment
-            };
-
-            if (waypoint)
-            {
-                if (entryPoint == null)
-                {
-                    var point = _codepointService.GetCodepoint(segment);
-                    if (point == null)
-                    {
-                        segmentResult.State = ValidationState.INVALID;
-                        segmentResult.StateDetails = "Could not find waypoint";
-                        invalid = true;
-                    }
-                    else if (i < 2 && departingAerodrome != null)
-                    {
-                        if (selectedSid != null && !selectedSid.Radar)
-                        {
-                            var codes = selectedSid.Transitions
-                                .Select(t => t.Code).Concat(new[] {selectedSid.DepartureCode})
-                                .Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!);
-                            if (codes.All(c => point.Code != c))
-                                if (selectedSid.Transitions.Any(t => t.Track != null))
-                                {
-                                    var track = (int) selectedSid.Transitions.First(t => t.Track != null).Track!;
-                                    var departurePoint = _codepointService.GetCodepoint(selectedSid.DepartureCode!);
-                                    var bearingToWaypoint = departurePoint!.Location.GetBearingTo(point.Location);
-                                    var difference = (bearingToWaypoint - track + 540) % 360 - 180;
-                                    if (Math.Abs(difference) > 90)
-                                    {
-                                        segmentResult.State = ValidationState.WARNING;
-                                        segmentResult.StateDetails = "Waypoint after radar transition is behind aircraft";
-                                    }
-
-                                    if (segmentResult.State != ValidationState.WARNING &&
-                                        departurePoint!.Location.GetDistance(point.Location) > 50)
-                                    {
-                                        segmentResult.State = ValidationState.WARNING;
-                                        segmentResult.StateDetails = "Initial waypoint is greater than 50NM from SID departure point";
-                                    }
-
-                                    if (segmentResult.State == ValidationState.WARNING)
-                                    {
-                                        waypoints.Add(new PlanWaypoint()
-                                        {
-                                            Code = segment,
-                                            Location = point.Location,
-                                            Type = WaypointType.WARNING
-                                        });
-                        
-                                        routeMap.Add(point.Location);
-                                    }
-                                }
-                                else
-                                {
-                                    segmentResult.State = ValidationState.INVALID;
-                                    segmentResult.StateDetails = "Initial waypoint does not match selected SID";
-                                }
-                        }
-                        else if (!departingAerodrome.PointHasSid(point) && departingAerodrome.Location.GetDistance(point.Location) > 50)
-                        {
-                            segmentResult.State = ValidationState.WARNING;
-                            segmentResult.StateDetails = "Initial waypoint is greater than 50NM from departure airport";
-                        
-                            waypoints.Add(new PlanWaypoint()
-                            {
-                                Code = segment,
-                                Location = point.Location,
-                                Type = WaypointType.WARNING
-                            });
-                        
-                            routeMap.Add(point.Location);
-                        }
-                        
-                        if(segmentResult.State == ValidationState.VALID)
-                        {
-                            waypoints.Add(new PlanWaypoint()
-                            {
-                                Code = segment,
-                                Location = point.Location,
-                                Type = WaypointType.STANDARD
-                            });
-                        
-                            routeMap.Add(point.Location);
-                        }
-                    }
-                    else
-                    {
-                        waypoints.Add(new PlanWaypoint()
-                        {
-                            Code = segment,
-                            Location = point.Location,
-                            Type = WaypointType.STANDARD
-                        });
-                        
-                        routeMap.Add(point.Location);
-                    }
-
-                    if (departingAerodrome != null && point != null)
-                    {
-                        foreach (var sid in departingAerodrome.Sids)
-                        {
-                            if (sid.DepartureCode == point.Code ||
-                                sid.Transitions.Any(t => t.Code == point.Code))
-                                result.AvailableSids.First(s => s.Name == sid.Name).RouteWithSid =
-                                    sid.Code + "/" + (sid.Runways.Contains('|') ? "<RWY>" : sid.Runways) + " " + 
-                                    point.Code + " " + string.Join(' ', segments[(i + 1)..]);
-                        }
-                    }
+                        ValidationMessage = "Cannot specify a change in flight rules as first segment"
+                    };
                 }
                 else
                 {
-                    var airway = entryPoint.Airway;
-                    var exitPoint = entryPoint.Airway.GetPoint(segment);
-
-                    var point = exitPoint;
-                    var reverseTravel = false;
-
-                    if (exitPoint == null)
+                    if (last is DirectPlanSegment or AirwayPlanSegment)
                     {
-                        if (airway.AirwayPoints[^1].Type == AirwayPointType.END_INTERNATIONAL ||
-                            (airway.TwoWay && airway.AirwayPoints[0].Type == AirwayPointType.START_INTERNATIONAL))
-                        {
-                            if (airway.AirwayPoints[^1].Type == AirwayPointType.END_INTERNATIONAL)
-                                point = airway.AirwayPoints[^1];
-                            else
-                            {
-                                point = airway.AirwayPoints[0];
-                                reverseTravel = true;
-                            }
-                            
-                            waypoints.Add(new PlanWaypoint()
-                            {
-                                Code = point.Point.Code,
-                                Location = point.Point.Location,
-                                Type = WaypointType.AIRSPACE_BORDER
-                            });
-                            
-                            segmentResult.State = ValidationState.INTERNATIONAL;
-                            segmentResult.StateDetails = "Route believed to exit country airspace";
-                            international = true;
-                        }
-                        else
-                        {
-                            segmentResult.State = ValidationState.INVALID;
-                            segmentResult.StateDetails = "Cannot exit airway from this location";
-                            waypoints.Last().Type = WaypointType.ERROR;
-                            invalid = true;
-                        }
+                        last.State = ValidationState.INVALID;
+                        last.ValidationMessage = "Cannot specify a change in flight rules between points";
                     }
-                    else if (!airway.TwoWay && 
-                             Array.IndexOf(airway.AirwayPoints, entryPoint) >
-                             Array.IndexOf(airway.AirwayPoints, exitPoint))
+                
+                    last.ChangeToIFR = segment == "IFR";
+                    continue;
+                }
+            }
+
+            if (segment.Contains('/'))
+            {
+                var split = segment.Split('/');
+                segment = split[0];
+                secondaryInfo = split[1];
+            }
+
+            if (segment == "DCT")
+            {
+                segmentResult = new DirectPlanSegment()
+                {
+                    Code = "DCT",
+                    Type = PlanSegmentType.ENTITY
+                };
+            }
+
+            var codepoint = _codepointService.GetCodepoint(segment);
+            if (codepoint != null)
+            {
+                segmentResult = new CodepointPlanSegment
+                {
+                    CodePoint = codepoint,
+                    Location = codepoint.Location,
+                    Type = PlanSegmentType.ENTITY,
+                    Code = codepoint.Code
+                };
+
+                if (last is AirwayPlanSegment airwaySegment)
+                {
+                    airwaySegment.Exit = codepoint.AirwayPoints.FirstOrDefault(p => p.Airway == airwaySegment.Airway);
+                    airwaySegment.Reverse =
+                        Array.IndexOf(airwaySegment.Airway.AirwayPoints, airwaySegment.Entry) >
+                        Array.IndexOf(airwaySegment.Airway.AirwayPoints, airwaySegment.Exit);
+                }
+            }
+
+            var aerodrome = _aerodromeService.GetAerodrome(segment);
+            if (aerodrome != null)
+            {
+                segmentResult = new AerodromePlanSegment
+                {
+                    Aerodrome = aerodrome,
+                    Location = aerodrome.Location,
+                    Type = PlanSegmentType.ENTITY,
+                    Code = aerodrome.Code
+                };
+            }
+
+            var airway = _airwayService.GetAirway(segment);
+            if (airway != null)
+            {
+                AirwayPoint? entry = null;
+                if (last is CodepointPlanSegment codepointSegment)
+                {
+                    entry = codepointSegment.CodePoint.AirwayPoints.FirstOrDefault(p => p.Airway == airway);
+                }
+                
+                segmentResult = new AirwayPlanSegment
+                {
+                    Entry = entry,
+                    Airway = airway,
+                    Type = PlanSegmentType.ENTITY,
+                    Code = airway.Code
+                };
+            }
+
+            var sid = departingAerodrome?.Sids.FirstOrDefault(s => s.Code == segment);
+            if (sid != null)
+            {
+                segmentResult = new SidPlanSegment
+                {
+                    Sid = sid,
+                    SelectedRunway = secondaryInfo,
+                    Type = PlanSegmentType.ENTITY,
+                    Code = sid.Code
+                };
+            }
+
+            var star = destinationAerodrome?.Stars.FirstOrDefault(s => s.Code == segment);
+            if (star != null)
+            {
+                segmentResult = new StarPlanSegment
+                {
+                    Star = star,
+                    SelectedRunway = secondaryInfo,
+                    Type = PlanSegmentType.ENTITY,
+                    Code = star.Code
+                };
+            }
+
+            var coordinate = CoordRegex.Match(segment);
+            if (coordinate.Success)
+            {
+                var latMultiplier = coordinate.Groups[4].Value == "S" ? -1 : 1;
+                var lonMultiplier = coordinate.Groups[8].Value == "W" ? -1 : 1;
+
+                var lat = double.Parse(coordinate.Groups[1].Value);
+                lat += coordinate.Groups[2].Success ? double.Parse(coordinate.Groups[2].Value) / 60 : 0;
+                lat += coordinate.Groups[3].Success ? double.Parse(coordinate.Groups[3].Value) / 3600 : 0;
+                
+                var lon = double.Parse(coordinate.Groups[5].Value);
+                lon += coordinate.Groups[6].Success ? double.Parse(coordinate.Groups[6].Value) / 60 : 0;
+                lon += coordinate.Groups[7].Success ? double.Parse(coordinate.Groups[7].Value) / 3600 : 0;
+
+                segmentResult = new PlanSegmentValidation
+                {
+                    Code = segment,
+                    Location = new Location
+                    {
+                        Latitude = lat * latMultiplier,
+                        Longitude = lon * lonMultiplier
+                    },
+                    Type = PlanSegmentType.COORDINATE
+                };
+            }
+
+            segmentResult ??= new PlanSegmentValidation
+            {
+                Code = segment,
+                Type = PlanSegmentType.UNKNOWN,
+                State = ValidationState.INVALID,
+                ValidationMessage = "Unable to detect segment type"
+            };
+
+            if (secondaryInfo != null && segmentResult is not (SidPlanSegment or StarPlanSegment))
+            {
+                var match = LevelAndSpeedRegex.Match(secondaryInfo);
+                if (match.Success)
+                {
+                    if (segmentResult is DirectPlanSegment || segmentResult is AirwayPlanSegment)
                     {
                         segmentResult.State = ValidationState.INVALID;
-                        segmentResult.StateDetails = "Cannot travel given direction in selected airway";
-                        waypoints.Last().Type = WaypointType.ERROR;
-                        invalid = true;
+                        segmentResult.ValidationMessage = "Cannot specify a change in level and speed between points";
                     }
-                    else
-                    {
-                        reverseTravel = Array.IndexOf(airway.AirwayPoints, entryPoint) >
-                                        Array.IndexOf(airway.AirwayPoints, exitPoint);
-                        
-                        segmentResult.State = ValidationState.VALID;
-                        
-                        waypoints.Add(new PlanWaypoint()
-                        {
-                            Code = segment,
-                            Location = point.Point.Location,
-                            Type = WaypointType.STANDARD
-                        });
-                    }
-
-                    if (departingAerodrome != null && point != null)
-                    {
-                        var sidPoint = entryPoint;
-                        do
-                        {
-                            foreach (var sid in departingAerodrome.Sids)
-                            {
-                                if (sid.DepartureCode == sidPoint.Point.Code ||
-                                    sid.Transitions.Any(t => t.Code == sidPoint.Point.Code))
-                                    result.AvailableSids.First(s => s.Name == sid.Name).RouteWithSid =
-                                        sid.Code + "/" + (sid.Runways.Contains('|') ? "<RWY>" : sid.Runways) + " " + 
-                                        sidPoint.Point.Code + " " + sidPoint.Airway.Code + " " + string.Join(' ', segments[(i)..]);
-                            }
-                            
-                            sidPoint = reverseTravel ? sidPoint.LastLeg.StartPoint : sidPoint.NextLeg.EndPoint;
-                        } while (sidPoint.Point.Code != point.Point.Code);
-                    }
-
-                    if (segmentResult.State != ValidationState.INVALID)
-                    {
-                        var airwayPoints = new List<Location>();
-                        do
-                        {
-                            airwayPoints.Add(point.Point.Location);
-                            point = reverseTravel ? point.NextLeg.EndPoint : point.LastLeg.StartPoint;
-                        } while (point.Point.Code != entryPoint.Point.Code);
-
-                        airwayPoints.Reverse();
-                        routeMap.AddRange(airwayPoints);
-                    }
-                }
-
-                lastCodepoint = segment;
-            }
-            else
-            {
-                if (segment == "DCT")
-                {
-                    entryPoint = null;
+                    
+                    segmentResult.FlightLevelChange = match.Groups[1].Value;
+                    segmentResult.SpeedChange = match.Groups[5].Value;
                 }
                 else
                 {
-                    var airway = _airwayService.GetAirway(segment);
-                    if (airway == null)
-                    {
-                        segmentResult.State = ValidationState.INVALID;
-                        segmentResult.StateDetails = "Could not find airway";
-                        waypoints.Last().Type = WaypointType.ERROR;
-                        invalid = true;
-                    }
-                    else
-                    {
-                        entryPoint = airway.GetPoint(lastCodepoint!);
-                        if (entryPoint == null)
-                        {
-                            segmentResult.State = ValidationState.INVALID;
-                            segmentResult.StateDetails = "Cannot enter airway from this location";
-                            waypoints.Last().Type = WaypointType.ERROR;
-                            invalid = true;
-                        }
-                    }
+                    segmentResult.State = ValidationState.INVALID;
+                    segmentResult.ValidationMessage = "Unable to parse secondary information";
                 }
             }
-
-            waypoint = !waypoint;
 
             segmentResults.Add(segmentResult);
         }
-
-        if (international)
-            result.DestinationAirport = new PlanSegmentValidationResult()
-            {
-                Segment = plan.DestinationAirport,
-                State = ValidationState.INTERNATIONAL
-            };         
-        else
+        
+        foreach (var (segment, i) in segmentResults.Select((value, i) => (value, i)))
         {
-            if (destinationAerodrome == null)
-                result.DestinationAirport = new PlanSegmentValidationResult()
-                {
-                    Segment = plan.DestinationAirport,
-                    StateDetails = "Could not find aerodrome",
-                    State = ValidationState.INVALID
-                };
-            else
+            var lastIndex = segmentResults.Count - 1;
+            var lastSegment = i > 0 ? segmentResults[i - 1] : null;
+            var nextSegment = i < lastIndex ? segmentResults[i + 1] : null;
+
+            if (segment.Type == PlanSegmentType.ENTITY)
             {
-                result.DestinationAirport = new PlanSegmentValidationResult()
+                if (segment is AerodromePlanSegment aerodrome)
                 {
-                    Segment = plan.DestinationAirport,
-                };
-                
-                if(segments.Length < 1)
-                {
-                    var segmentResult = waypoint ? segmentResults[^2] : segmentResults.Last();
-                    if (segmentResult.State == ValidationState.VALID &&
-                        !destinationAerodrome.PointHasStar(waypoints.Last().Code) &&
-                        waypoints.Last().Location.GetDistance(destinationAerodrome.Location) > 50)
+                    if (i == 0 && plan.DepartingAirport != aerodrome.Code)
                     {
-                        waypoints.Last().Type = WaypointType.WARNING;
-                        segmentResult.State = ValidationState.WARNING;
-                        segmentResult.StateDetails = "Final waypoint is greater than 50NM from destination airport";
+                        segment.State = ValidationState.WARNING;
+                        segment.ValidationMessage = "Specified departure aerodrome is different from code in flight plan";
+                        continue;
+                    }
+                    
+                    if (i == lastIndex && plan.DestinationAirport != aerodrome.Code)
+                    {
+                        segment.State = ValidationState.WARNING;
+                        segment.ValidationMessage = "Specified destination aerodrome is different from code in flight plan";
+                        continue;
+                    }
+                    
+                    if(i > 0 && i < lastIndex)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot enter an aerodrome code here";
+                        continue;
                     }
                 }
-            
-                waypoints.Add(new PlanWaypoint()
+                else if (segment is SidPlanSegment sid)
                 {
-                    Code = plan.DestinationAirport,
-                    Location = destinationAerodrome.Location,
-                    Type = WaypointType.AIRPORT
-                });
-                
-                if(!invalid)
-                    routeMap.Add(destinationAerodrome.Location);
+                    if (i != 0 && !(i == 1 && lastSegment is AerodromePlanSegment))
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot enter a SID here";
+                        continue;
+                    }
+
+                    var rws = sid.Sid.Runways.Split('|');
+
+                    if (rws.All(r => r != sid.SelectedRunway))
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid runway specified for selected SID";
+                        continue;
+                    }
+                }
+                else if (segment is StarPlanSegment star)
+                {
+                    if (i != lastIndex && !(i == lastIndex - 1 && nextSegment is AerodromePlanSegment))
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot enter a STAR here";
+                        continue;
+                    }
+
+                    var waypoint = lastSegment?.Code;
+                    var transition = star.Star.Transitions.FirstOrDefault(t => t.Code == waypoint);
+                    
+                    var rws = (transition?.Runways ?? star.Star.Runways).Split('|');
+
+                    if (rws.All(r => r != star.SelectedRunway))
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid runway specified for selected STAR" + (transition?.Runways != null ? " transition" : "");
+                        continue;
+                    }
+                }
+                else if (segment is CodepointPlanSegment codepoint)
+                {
+                    if (i > 0)
+                    {
+                        if(lastSegment is SidPlanSegment { Sid.Radar: false } sidSegment)
+                        {
+                            var waypoint = segment.Code;
+                            var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.Code });
+
+                            if (transitions.All(t => t != waypoint))
+                            {
+                                var radarTransition =
+                                    sidSegment.Sid.Transitions.FirstOrDefault(t => t.Type == TransitionType.RADAR);
+
+                                if (radarTransition == null)
+                                {
+                                    segment.State = ValidationState.INVALID;
+                                    segment.ValidationMessage = "Invalid waypoint specified for selected SID";
+                                    continue;
+                                }
+
+                                if (radarTransition.Track != null && sidSegment.Sid.Point != null)
+                                {
+                                    var track = (int) radarTransition.Track!;
+                                    var departurePoint = sidSegment.Sid.Point;
+                                    var bearingToWaypoint = departurePoint!.Location.GetBearingTo(codepoint.Location!);
+                                    var difference = (bearingToWaypoint - track + 540) % 360 - 180;
+                                    if (Math.Abs(difference) > 90)
+                                    {
+                                        segment.State = ValidationState.WARNING;
+                                        segment.ValidationMessage = "Waypoint after radar transition is behind aircraft";
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (lastSegment is AirwayPlanSegment { Exit: null } airwaySegment)
+                        {
+                            if (airwaySegment.Airway.AirwayPoints[^1].Type == AirwayPointType.END_INTERNATIONAL ||
+                                (airwaySegment.Airway.TwoWay && airwaySegment.Airway.AirwayPoints[0].Type ==
+                                    AirwayPointType.START_INTERNATIONAL))
+                            {
+                                segment.State = ValidationState.INTERNATIONAL;
+                                segment.ValidationMessage = "Flight plan believed to exit country airspace";
+                                continue;
+                            }
+
+                            segment.State = ValidationState.INVALID;
+                            segment.ValidationMessage = "Invalid waypoint exit specified for selected airway";
+                            continue;
+                        }
+
+                        if (lastSegment is AirwayPlanSegment { Reverse: true, Airway.TwoWay: false })
+                        {
+                            segment.State = ValidationState.INVALID;
+                            segment.ValidationMessage = "Invalid direction for selected airway";
+                            continue;
+                        }
+
+                        if (lastSegment is CodepointPlanSegment || lastSegment?.Type == PlanSegmentType.COORDINATE)
+                        {
+                            segment.State = ValidationState.INVALID;
+                            segment.ValidationMessage = "Please specify an airway or DCT between waypoints";
+                            continue;
+                        }
+                    }
+
+                    if (i < lastIndex)
+                    {
+                        if (lastSegment is StarPlanSegment starSegment)
+                        {
+                            var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == segment.Code);
+
+                            if (selectedTransition == null && starSegment.Star.Code != segment.Code)
+                            {
+                                segment.State = ValidationState.INVALID;
+                                segment.ValidationMessage = "Invalid waypoint specified for selected STAR";
+                                continue;
+                            }
+                        }
+                    }
+                }
+                else if (segment is AirwayPlanSegment airway)
+                {
+                    if (i == 0)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot specify an airway as the first segment";
+                        continue;
+                    }
+
+                    if (lastSegment is DirectPlanSegment or AirwayPlanSegment)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot specify two travel paths in succession";
+                        continue;
+                    }
+                    
+                    if (airway.Entry == null)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid waypoint entry specified for selected airway";
+                        continue;
+                    }
+                }
+                else if (segment is DirectPlanSegment direct)
+                {
+                    if (lastSegment is DirectPlanSegment or AirwayPlanSegment)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "You cannot specify two travel paths in succession";
+                        continue;
+                    }
+
+                    if (lastSegment is CodepointPlanSegment lastCodepoint && nextSegment is CodepointPlanSegment nextCodepoint)
+                    {
+                        var exitAirways = nextCodepoint.CodePoint.AirwayPoints.Select(p => p.Airway);
+                        direct.AirwayAlternate = lastCodepoint.CodePoint.AirwayPoints
+                            .FirstOrDefault(p => exitAirways.Contains(p.Airway))?.Airway;
+                    }
+                }
+                else
+                {
+                    segment.State = ValidationState.INVALID;
+                    segment.ValidationMessage = "Unknown plan validation entity type (" + segment.GetType().Name +")";
+                    continue;
+                }
             }
         }
 
-        result.SegmentValidationResults = segmentResults.ToArray();
-        result.Waypoints = waypoints.ToArray();
-        result.RouteMap = routeMap.ToArray();
+        var departingResult = new PlanSegmentValidationResult
+        {
+            Segment = departingAerodrome?.Code ?? plan.DepartingAirport,
+            State = departingAerodrome != null ? ValidationState.VALID : ValidationState.INVALID,
+            Location = departingAerodrome?.Location,
+            StateDetails = departingAerodrome == null ? "Could not find departing aerodrome" : ""
+        };
 
-        return result;
+        var sids = new List<PlanSid>();
+        if (departingAerodrome != null)
+        {
+            List<string> points = segmentResults.OfType<CodepointPlanSegment>().Select(c => c.Code).ToList();
+            var sidPoints = departingAerodrome.Sids
+                .Select(s => new { Sid = s, Point = s.Transitions.Select( t => t.Code)
+                .Concat(new [] {s.DepartureCode }).FirstOrDefault(p => p != null && points.Contains(p)) }).ToList();
+            
+            var preSid = segmentResults.First() is AerodromePlanSegment aerodrome ? aerodrome.Code + " " : "";
+            
+            foreach (var val in sidPoints)
+            {
+                var sid = val.Sid;
+                
+                string? routeWithSid = null;
+                if (val.Point != null)
+                {
+                    var startIndex = segmentResults.FindIndex(s => s.Code == val.Point);
+                    routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
+                                   string.Join(' ', segmentResults.Skip(startIndex).Select(s => s.RebuildSegment()));
+                }
+
+                if (val.Sid.Radar)
+                {
+                    var startIndex = segmentResults.FindIndex(s => s is not AerodromePlanSegment && s is not SidPlanSegment);
+                    routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
+                                   string.Join(' ', segmentResults.Skip(startIndex).Select(s => s.RebuildSegment()));
+                }
+                
+                sids.Add(new PlanSid
+                {
+                    Name = sid.Name,
+                    AircraftType = sid.AircraftType,
+                    Runways = sid.Runways,
+                    IsRadar = sid.Radar,
+                    Transitions = string.Join(' ',
+                        sid.Transitions.Select(t =>
+                            t.Type == TransitionType.NAV ? t.Code : "RADAR" + (t.Track.HasValue ? "-" + t.Track : ""))),
+                    RouteWithSid = routeWithSid
+                });
+            }
+        }
+        
+        var results = new List<PlanSegmentValidationResult>();
+        var routeMap = new List<Location>();
+
+        var invalid = false;
+        var international = false;
+        
+        if(departingAerodrome?.Location != null)
+            routeMap.Add(departingAerodrome.Location);
+
+        foreach (var segment in segmentResults.Where(s => s is not AerodromePlanSegment))
+        {
+            var result = new PlanSegmentValidationResult()
+            {
+                Segment = segment.RebuildSegment(),
+                MapCode = segment.Code,
+                Location = segment.Location
+            };
+            results.Add(result);
+            
+            if (invalid)
+            {
+                result.State = ValidationState.UNVALIDATED;
+                continue;
+            }
+
+            if (international)
+            {
+                result.State = ValidationState.INTERNATIONAL;
+                continue;
+            }
+
+            if (segment.State != ValidationState.VALID)
+            {
+                result.State = segment.State;
+                result.StateDetails = segment.ValidationMessage;
+
+                if (result.State == ValidationState.INVALID)
+                    invalid = true;
+
+                if (result.State == ValidationState.INTERNATIONAL)
+                    international = true;
+                
+                if(result.State != ValidationState.WARNING)
+                    continue;
+            }
+            
+            if(segment.Location != null)
+                routeMap.Add(segment.Location);
+
+            if (segment is AirwayPlanSegment { Exit: { } } airway)
+            {
+                var point = airway.Reverse!.Value ? airway.Entry!.LastLeg!.StartPoint : airway.Entry!.NextLeg!.EndPoint;
+                while (point != airway.Exit)
+                {
+                    routeMap.Add(point.Point.Location);
+                    point = airway.Reverse!.Value ? point.LastLeg!.StartPoint : point.NextLeg!.EndPoint;
+                }
+            }
+        }
+
+        var destinationResult = new PlanSegmentValidationResult
+        {
+            Segment = destinationAerodrome?.Code ?? plan.DestinationAirport,
+            State = destinationAerodrome != null ? ValidationState.VALID : international ? ValidationState.INTERNATIONAL : ValidationState.INVALID,
+            Location = destinationAerodrome?.Location,
+            StateDetails = destinationAerodrome == null ? "Could not find departing aerodrome" : ""
+        };
+
+        var stars = new List<PlanStar>();
+        if (destinationAerodrome != null)
+        {
+            var points = segmentResults.OfType<CodepointPlanSegment>().Select(c => c.Code).ToList();
+            var starPoints = destinationAerodrome.Stars
+                .Select(s => new { Star = s, Point = s.Transitions.Select( t => t.Code)
+                .Concat(new [] { s.ArrivalCode }).FirstOrDefault(p => points.Contains(p)) }).ToList();
+            
+            var postStar = segmentResults.Last() is AerodromePlanSegment aerodrome ? " " + aerodrome.Code : "";
+            
+            foreach (var val in starPoints)
+            {
+                var star = val.Star;
+                
+                string? routeWithStar = null;
+                if (val.Point != null)
+                {
+                    var endIndex = segmentResults.FindIndex(s => s.Code == val.Point);
+                    var rws = star.Transitions.FirstOrDefault(t => t.Code == val.Point)?.Runways ?? star.Runways;
+                    routeWithStar = string.Join(' ', segmentResults.Take(endIndex + 1).Select(s => s.RebuildSegment()))
+                                    + " " + star.Code + "/" + rws + postStar;
+                }
+                
+                stars.Add(new PlanStar
+                {
+                    Name = star.Name,
+                    AircraftType = star.AircraftType,
+                    Runways = star.Runways,
+                    Transitions = string.Join(' ',
+                        star.Transitions.Select(t =>
+                            t.Code + (t.Runways != null ? " (RWY " + t.Runways +")" : "") + 
+                            (t.AircraftType != AircraftType.BOTH ? t.AircraftType == AircraftType.JET ? " (JET)" : " (NON-JET)" : ""))),
+                    RouteWithStar = routeWithStar
+                });
+            }
+        }
+        
+        if(!invalid && destinationAerodrome?.Location != null)
+            routeMap.Add(destinationAerodrome.Location);
+
+        string dctCollapse = "";
+        foreach (var segment in segmentResults)
+            dctCollapse += segment is DirectPlanSegment { AirwayAlternate: { } } direct
+                ? " <AWC>" + direct.AirwayAlternate.Code
+                : " " + segment.RebuildSegment();
+        
+        dctCollapse = dctCollapse.TrimStart();
+        var preCollapse = dctCollapse.Replace("<AWC>", "");
+        
+        var awc = AirwayCollapseRegex.Match(dctCollapse);
+        while (awc.Success)
+        {
+            if (awc.Groups[2].Value == awc.Groups[4].Value)
+                dctCollapse = awc.Groups[1].Value + "<AWC>" + awc.Groups[2] + awc.Groups[5].Value;
+            else
+                dctCollapse = awc.Groups[1].Value + awc.Groups[2].Value + " " + awc.Groups[3].Value + " <AWC>" + awc.Groups[4].Value + awc.Groups[5].Value;
+            awc = AirwayCollapseRegex.Match(dctCollapse);
+        }
+
+        dctCollapse = dctCollapse.Replace("<AWC>", "");
+        
+        return new PlanValidationResult
+        {
+            SegmentValidationResults = results.ToArray(),
+            DctCollapse = dctCollapse != preCollapse ? dctCollapse : null,
+            RouteMap = routeMap.ToArray(),
+            DepartingAirport = departingResult,
+            DestinationAirport = destinationResult,
+            AvailableSids = sids,
+            AvailableStars = stars
+        };
     }
 }
