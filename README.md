@@ -3,6 +3,8 @@ Assistant tools for VATPAC (VATSIM) ATC clearance and operation.
 
 This repository only includes a small amount of sample data.
 
+[A version of the application using the sample data can be viewed here](https://atctools.dotefekts.net/)
+
 **For simulation use only**
 
 ## Features
