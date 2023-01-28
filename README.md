@@ -1,6 +1,8 @@
 # ATCTools
 Assistant tools for VATPAC (VATSIM) ATC clearance and operation.
 
+This repository only includes a small amount of sample data.
+
 **For simulation use only**
 
 ## Features
@@ -33,7 +35,7 @@ It has been built for Australian airspace, however in theory you could use it fo
 
 
 ## XML File Format
-There are several XML files you will need to provide data for. This repository does not include data files. The XSD schema files are in the `XmlSchemas` folder.
+There are several XML files you will need to provide data for. This repository only includes a small amount of sample data. The XSD schema files are in the `XmlSchemas` folder.
 
 ### `Aerodromes.xml`
 The `Aerodromes.xml` contains information on the name, state, location, and ICAO code of each aerodrome you want to add. 
