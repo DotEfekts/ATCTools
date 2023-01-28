@@ -5,6 +5,7 @@
 @using Microsoft.Extensions.Logging.Abstractions
 @inject AerodromeService AerodromeService
 @inject HttpClient HttpClient
+@inject IConfiguration Configuration
 
 <div class="d-flex ma-4" style="height: calc(100% - 32px);">
     <div class="left-container d-flex flex-column" style="width: 500px;">
@@ -49,14 +50,12 @@
         }
         else
         {
-            <iframe style="height: 100%; width: 100%;" src="@(CHART_BASE_URL + _selectedChart.Path)" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
+            <iframe style="height: 100%; width: 100%;" src="@(Configuration["ChartBaseUrl"] + _selectedChart.Path)" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
         }
     </MudPaper>
 </div>
 
 @code {
-    private const string CHART_BASE_URL = "https://www.airservicesaustralia.com/aip/current/dap/";
-    
     private ClientAerodrome? _selectedAerodrome = null;
     private ClientAerodromeChart? _selectedChart = null;
     private string? _search = null;
