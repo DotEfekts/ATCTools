@@ -332,17 +332,8 @@ public class FlightPlanValidationController
                             }
                         }
 
-                        if (lastSegment is AirwayPlanSegment { Exit: null } airwaySegment)
+                        if (lastSegment is AirwayPlanSegment { Exit: null })
                         {
-                            if (airwaySegment.Airway.AirwayPoints[^1].Type == AirwayPointType.END_INTERNATIONAL ||
-                                (airwaySegment.Airway.TwoWay && airwaySegment.Airway.AirwayPoints[0].Type ==
-                                    AirwayPointType.START_INTERNATIONAL))
-                            {
-                                segment.State = ValidationState.INTERNATIONAL;
-                                segment.ValidationMessage = "Flight plan believed to exit country airspace";
-                                continue;
-                            }
-
                             segment.State = ValidationState.INVALID;
                             segment.ValidationMessage = "Invalid waypoint exit specified for selected airway";
                             continue;
@@ -423,6 +414,35 @@ public class FlightPlanValidationController
                     segment.ValidationMessage = "Unknown plan validation entity type (" + segment.GetType().Name +")";
                     continue;
                 }
+            } 
+            else if (segment.Type == PlanSegmentType.UNKNOWN && lastSegment is AirwayPlanSegment airwaySegment)
+            {
+                AirwayPoint? internationalExit = null;
+
+                if (airwaySegment.Airway.AirwayPoints[^1].Type == AirwayPointType.END_INTERNATIONAL)
+                {
+                    internationalExit = airwaySegment.Airway.AirwayPoints[^1];
+                    airwaySegment.Reverse = false;
+                }
+                else if (airwaySegment.Airway.TwoWay &&
+                    airwaySegment.Airway.AirwayPoints[0].Type == AirwayPointType.START_INTERNATIONAL)
+                {
+                    internationalExit = airwaySegment.Airway.AirwayPoints[0];
+                    airwaySegment.Reverse = true;
+                }
+
+
+                if (internationalExit != null)
+                {
+                    segment.State = ValidationState.INTERNATIONAL;
+                    segment.ValidationMessage = "Flight plan believed to exit country airspace";
+                    segment.MapCode = internationalExit.Point.Code;
+                    segment.Location = internationalExit.Point.Location;
+
+                    airwaySegment.Exit = internationalExit;
+                }
+                
+                continue;
             }
         }
 
@@ -447,6 +467,7 @@ public class FlightPlanValidationController
             foreach (var val in sidPoints)
             {
                 var sid = val.Sid;
+                var radarTransition = val.Sid.Transitions.FirstOrDefault(t => t is {Type: TransitionType.RADAR, Track: { }});
                 
                 string? routeWithSid = null;
                 if (val.Point != null)
@@ -455,12 +476,28 @@ public class FlightPlanValidationController
                     routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
                                    string.Join(' ', segmentResults.Skip(startIndex).Select(s => s.RebuildSegment()));
                 }
-
-                if (val.Sid.Radar)
+                else if (val.Sid.Radar)
                 {
                     var startIndex = segmentResults.FindIndex(s => s is not AerodromePlanSegment && s is not SidPlanSegment);
                     routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
                                    string.Join(' ', segmentResults.Skip(startIndex).Select(s => s.RebuildSegment()));
+                }
+                else if(radarTransition != null && sid.Point != null)
+                {
+                    var pIndex = segmentResults.FindIndex(r => r is CodepointPlanSegment);
+                    if (pIndex >= 0 && segmentResults[pIndex].Location != null)
+                    {
+                        var firstPoint = segmentResults[pIndex];
+                        
+                        var bearing = sid.Point.Location.GetBearingTo(firstPoint.Location!);
+                        var difference = (bearing - radarTransition.Track!.Value + 540) % 360 - 180;
+                        if (Math.Abs(difference) < 90)
+                        {
+                            routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
+                                           string.Join(' ', segmentResults.Skip(pIndex).Select(s => s.RebuildSegment()));
+                        }
+
+                    }
                 }
                 
                 sids.Add(new PlanSid
@@ -491,7 +528,7 @@ public class FlightPlanValidationController
             var result = new PlanSegmentValidationResult()
             {
                 Segment = segment.RebuildSegment(),
-                MapCode = segment.Code,
+                MapCode = segment.MapCode ?? segment.Code,
                 Location = segment.Location
             };
             results.Add(result);
@@ -514,13 +551,13 @@ public class FlightPlanValidationController
                 result.StateDetails = segment.ValidationMessage;
 
                 if (result.State == ValidationState.INVALID)
+                {
                     invalid = true;
-
+                    continue;
+                }
+                
                 if (result.State == ValidationState.INTERNATIONAL)
                     international = true;
-                
-                if(result.State != ValidationState.WARNING)
-                    continue;
             }
             
             if(segment.Location != null)
@@ -542,7 +579,7 @@ public class FlightPlanValidationController
             Segment = destinationAerodrome?.Code ?? plan.DestinationAirport,
             State = destinationAerodrome != null ? ValidationState.VALID : international ? ValidationState.INTERNATIONAL : ValidationState.INVALID,
             Location = destinationAerodrome?.Location,
-            StateDetails = destinationAerodrome == null ? "Could not find departing aerodrome" : ""
+            StateDetails = destinationAerodrome == null && !international ? "Could not find departing aerodrome" : ""
         };
 
         var stars = new List<PlanStar>();

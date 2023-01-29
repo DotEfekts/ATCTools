@@ -49,6 +49,6 @@ function AddLine(latList, color){
 function ScrollToView(){
     window.setTimeout(function() {
         routeFeatures.addTo(routeMap);
-        routeMap.fitBounds(routeFeatures.getBounds());
+        routeMap.fitBounds(routeFeatures.getBounds().pad(0.2));
     }, 10);
 }
