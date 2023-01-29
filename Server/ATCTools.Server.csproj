@@ -15,6 +15,65 @@
     <ProjectReference Include="..\Shared\ATCTools.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Sample Data\AerodromeCharts.xml" />
+    <Content Include="Sample Data\AerodromeCharts.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\Aerodromes.xml" />
+    <Content Include="Sample Data\Aerodromes.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\AerodromeSIDs.xml" />
+    <Content Include="Sample Data\AerodromeSIDs.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\AerodromeSTARs.xml" />
+    <Content Include="Sample Data\AerodromeSTARs.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\Airways.xml" />
+    <Content Include="Sample Data\Airways.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\Navaids.xml" />
+    <Content Include="Sample Data\Navaids.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Sample Data\Waypoints.xml" />
+    <Content Include="Sample Data\Waypoints.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\AerodromeCharts.xsd" />
+    <Content Include="XmlSchemas\AerodromeCharts.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\Aerodromes.xsd" />
+    <Content Include="XmlSchemas\Aerodromes.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\AerodromeSIDs.xsd" />
+    <Content Include="XmlSchemas\AerodromeSIDs.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\AerodromeSTARs.xsd" />
+    <Content Include="XmlSchemas\AerodromeSTARs.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\Airways.xsd" />
+    <Content Include="XmlSchemas\Airways.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\Navaids.xsd" />
+    <Content Include="XmlSchemas\Navaids.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Remove="XmlSchemas\Waypoints.xsd" />
+    <Content Include="XmlSchemas\Waypoints.xsd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <BlazorWebAssemblyOmitDebugProxyOutput>true</BlazorWebAssemblyOmitDebugProxyOutput>
   </PropertyGroup>
