@@ -327,6 +327,12 @@ public class FlightPlanValidationController
                             var waypoint = codepoint.Code;
                             var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.DepartureCode });
 
+                            sidSegment.SubInfo = sidSegment.Sid.Transitions.Select(t => t.Code)
+                                .FirstOrDefault(t => t == waypoint);
+                            
+                            if (sidSegment.SubInfo != null)
+                                sidSegment.SubInfo += " TRANSITION";
+
                             if (transitions.All(t => t != waypoint))
                             {
                                 var radarTransition =
@@ -339,7 +345,9 @@ public class FlightPlanValidationController
                                     continue;
                                 }
 
-                                if (radarTransition.Track != null && sidSegment.Sid.Point != null)
+                                sidSegment.SubInfo = "RADAR TRANSITION";
+
+                                    if (radarTransition.Track != null && sidSegment.Sid.Point != null)
                                 {
                                     var track = (int) radarTransition.Track!;
                                     var departurePoint = sidSegment.Sid.Point;
@@ -348,7 +356,8 @@ public class FlightPlanValidationController
                                     if (Math.Abs(difference) > 90)
                                     {
                                         segment.State = ValidationState.WARNING;
-                                        segment.ValidationMessage = "Waypoint after radar transition is behind aircraft";
+                                        segment.ValidationMessage =
+                                            "Waypoint after radar transition is behind aircraft";
                                         continue;
                                     }
                                 }
@@ -379,7 +388,7 @@ public class FlightPlanValidationController
 
                     if (i < lastIndex)
                     {
-                        if (lastSegment is StarPlanSegment starSegment)
+                        if (nextSegment is StarPlanSegment starSegment)
                         {
                             var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == codepoint.Code);
 
@@ -388,6 +397,11 @@ public class FlightPlanValidationController
                                 segment.State = ValidationState.INVALID;
                                 segment.ValidationMessage = "Invalid waypoint specified for selected STAR";
                                 continue;
+                            }
+
+                            if (selectedTransition != null)
+                            {
+                                starSegment.SubInfo = selectedTransition.Code + " TRANSITION";
                             }
                         }
                     }
@@ -497,6 +511,7 @@ public class FlightPlanValidationController
             var result = new PlanSegmentValidationResult()
             {
                 Segment = segment.RebuildSegment(),
+                SubInfo = segment.SubInfo,
                 MapCode = segment.MapCode ?? segment.Code,
                 Location = segment.Location
             };
@@ -532,10 +547,12 @@ public class FlightPlanValidationController
             if(segment.Location != null)
                 routeMap.Add(segment.Location);
 
-            if (lastSegment != null && segment is DirectPlanSegment direct)
+            if (lastSegment != null)
             {
-                if(waypoints.LastOrDefault()?.Item1 != lastSegment.Code)
+                if(segment is DirectPlanSegment)
                     waypoints.Add(new Tuple<string, string>(lastSegment.Code, "DCT"));
+                if(segment is CodepointPlanSegment && lastSegment is DirectPlanSegment)
+                    waypoints.Add(new Tuple<string, string>(segment.Code, "DCT"));
             }
             
             if (segment is AirwayPlanSegment { Exit: { } } airway)

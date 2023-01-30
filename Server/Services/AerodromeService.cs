@@ -225,9 +225,9 @@ public class AerodromeService
                     {
                         aerodromeStar.Transitions.Add(new StarTransition
                         {
-                            Code = star.Attributes!["code"]!.Value,
-                            Runways = star.Attributes!["runway"]?.Value,
-                            AircraftType = ModelUtilities.GetAircraftType(star.Attributes!["aircraft-type"]?.Value)
+                            Code = transition.Attributes!["code"]!.Value,
+                            Runways = transition.Attributes!["runway"]?.Value,
+                            AircraftType = ModelUtilities.GetAircraftType(transition.Attributes!["aircraft-type"]?.Value)
                         });
                     }
                 }

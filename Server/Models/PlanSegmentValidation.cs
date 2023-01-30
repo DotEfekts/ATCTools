@@ -5,6 +5,7 @@ namespace ATCTools.Server.Models;
 public class PlanSegmentValidation
 {
     public string Code { get; set; }
+    public string? SubInfo { get; set; }
     public string? MapCode { get; set; }
     public ValidationState State { get; set; }
     public string? ValidationMessage { get; set; }

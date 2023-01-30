@@ -2,9 +2,7 @@
 @page "/"
 @using ATCTools.Shared.Models
 @using ATCTools.Client.Services
-@using System.Diagnostics
 @using System.Net
-@using System.Numerics
 @using System.Web
 @using ATCTools.Client.Models
 @inject HttpClient Http
@@ -15,24 +13,24 @@
 <div class="d-flex" style="height: 100%;">
     <div class="d-flex flex-column" style="width: 35%;min-width: 600px;">
         <MudPaper Outlined="true" Class="mt-8 mb-4 ml-8 mr-2 pa-4">
-            <EditForm Model="@Plan" OnValidSubmit="@ValidFormSubmitted" @ref="_formRef">
+            <EditForm Model="@_plan" OnValidSubmit="@ValidFormSubmitted" @ref="_formRef">
                 <DataAnnotationsValidator/>
                 <div class="d-flex mb-2">
                     <MudTextField Variant="Variant.Outlined" Label="Departing Airport" Class="mr-2"
-                                  Value="Plan.DepartingAirport" For="@(() => Plan.DepartingAirport)"
+                                  Value="_plan.DepartingAirport" For="@(() => _plan.DepartingAirport)"
                                   T="string" ValueChanged="DepartingChanged" Disabled="_loading"
-                                  HelperText="@_departingInfo?.AirportName" />
+                                  HelperText="@_departingFieldInfo?.AirportName" />
                     <MudTextField Variant="Variant.Outlined" Label="Destination Airport" Class="ml-2"
-                                  Value="Plan.DestinationAirport" For="@(() => Plan.DestinationAirport)"
+                                  Value="_plan.DestinationAirport" For="@(() => _plan.DestinationAirport)"
                                   T="string" ValueChanged="DestinationChanged" Disabled="_loading"
-                                  HelperText="@_destinationInfo?.AirportName" />
+                                  HelperText="@_destinationFieldInfo?.AirportName" />
                 </div>
-                <MudRadioGroup @bind-SelectedOption="@Plan.AircraftType" Class="ml-2">
+                <MudRadioGroup @bind-SelectedOption="@_plan.AircraftType" Class="ml-2">
                         <MudRadio Option="@AircraftType.JET" Color="Color.Primary" Disabled="_loading">Jet</MudRadio>
                         <MudRadio Option="@AircraftType.NON_JET" Color="Color.Primary" Disabled="_loading">Non-Jet</MudRadio>
                 </MudRadioGroup>
                 <MudTextField Variant="Variant.Outlined" Label="Route" Class="mb-2" T="string" Disabled="_loading"
-                              Value="Plan.Route" For="@(() => Plan.Route)" ValueChanged="UpdateRouteValue" />
+                              Value="_plan.Route" For="@(() => _plan.Route)" ValueChanged="UpdateRouteValue" />
                 @if (_route != null && !string.IsNullOrWhiteSpace(_route.Message))
                 {
                     <MudText Color="Color.Error" Class="pb-4" Align="Align.Center">@_route.Message</MudText>
@@ -66,10 +64,10 @@
                     </div>
                     <MudDivider></MudDivider>
                 }
-                @if (_result.AvailableSids?.Any() == true || _result.AvailableStars?.Any() == true)
+                @if (_result.AvailableSids.Any() || _result.AvailableStars.Any())
                 {
                     <MudExpansionPanels Elevation="0" Style="overflow-y:auto; overflow-x:hidden;">
-                        @if (_result.AvailableSids?.Any() == true)
+                        @if (_result.AvailableSids.Any())
                         {
                             <MudExpansionPanel Text="SIDs" Class="px-expand-panel-header">
                                 <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
@@ -78,7 +76,7 @@
                                         <MudListSubheader>Recommended SIDs (Click to apply)</MudListSubheader>
                                         @foreach (var sid in _result.AvailableSids.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
                                         {
-                                            <MudListItem OnClick="() => { Plan.Route = sid.RouteWithSid; Plan.DepartingAirport = _result.DepartingAirport.Segment; Plan.DestinationAirport = _result.DestinationAirport.Segment; }">
+                                            <MudListItem OnClick="() => { _plan.Route = sid.RouteWithSid!; _plan.DepartingAirport = _result.DepartingAirport.Segment; _plan.DestinationAirport = _result.DestinationAirport.Segment; }">
                                                 <MudText Typo="Typo.button">
                                                     <b>
                                                         @sid.Name
@@ -115,7 +113,7 @@
                                 </MudList>
                             </MudExpansionPanel>
                         }
-                        @if (_result.AvailableStars?.Any() == true)
+                        @if (_result.AvailableStars.Any())
                         {
                             <MudExpansionPanel Text="STARs" Class="px-expand-panel-header">
                                 <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
@@ -124,7 +122,7 @@
                                         <MudListSubheader>Recommended STARs (Click to apply)</MudListSubheader>
                                         @foreach (var star in _result.AvailableStars.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
                                         {
-                                            <MudListItem OnClick="() => { Plan.Route = star.RouteWithStar; Plan.DepartingAirport = _result.DepartingAirport.Segment; Plan.DestinationAirport = _result.DestinationAirport.Segment; }">
+                                            <MudListItem OnClick="() => { _plan.Route = star.RouteWithStar!; _plan.DepartingAirport = _result.DepartingAirport.Segment; _plan.DestinationAirport = _result.DestinationAirport.Segment; }">
                                                 <MudText Typo="Typo.button">
                                                     <b>
                                                         @star.Name
@@ -174,7 +172,7 @@
                     </div>
                     <MudDivider></MudDivider>
                 }
-                @if (_departingAerodrome.Sids?.Any() == true)
+                @if (_departingAerodrome.Sids.Any())
                 {
                     <MudExpansionPanels Elevation="0" Style="overflow-y:auto; overflow-x:hidden;">
                         <MudExpansionPanel Text="SIDs" Class="px-expand-panel-header">
@@ -186,8 +184,12 @@
                                             <b>
                                                 @sid.Name
                                                 @(sid.IsRadar ? "(RADAR)" : "")
-                                                @(sid.AircraftType == AircraftType.JET ? "(JET)" :
-                                                    sid.AircraftType == AircraftType.NON_JET ? "(NON-JET)" : "")
+                                                @(sid.AircraftType switch
+                                                {
+                                                    AircraftType.JET => "(JET)",
+                                                    AircraftType.NON_JET => "(NON-JET)",
+                                                    _ => ""
+                                                    })
                                                 @sid.Runways
                                             </b>
                                         </MudText>
@@ -213,13 +215,45 @@
             {
                 <div class="plan-validation-results" style="width: 100%">
                     <div class="d-flex justify-space-between">
-                        <MudText Class="plan-segment mr-4" Typo="Typo.h5" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.Segment</MudText>
-                        <MudText class="plan-segment ml-4" Typo="Typo.h5" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.Segment</MudText>
+                        <div class="d-flex align-center">
+                            <MudText Class="plan-segment mr-2" Typo="Typo.h5" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.Segment</MudText>
+                            <div class="d-inline-flex flex-column justify-center">
+                                @if (_departingInfo != null)
+                                {
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DepartingAirport.State)">@_departingInfo.Value.AirportName</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DepartingAirport.State)">@_departingInfo.Value.Location</MudText>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Error">Aerodrome information not found</MudText>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex align-center">
+                            <div class="d-inline-flex flex-column justify-center align-end">
+                                @if (_destinationInfo != null)
+                                {
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DestinationAirport.State)">@_destinationInfo.Value.AirportName</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DestinationAirport.State)">@_destinationInfo.Value.Location</MudText>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Error">Aerodrome information not found</MudText>
+                                }
+                            </div>
+                            <MudText class="plan-segment ml-2" Typo="Typo.h5" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.Segment</MudText>
+                        </div>
                     </div>
-                    <div class="flex-1 d-flex justify-center mb-2">
+                    <div class="flex-1 d-flex justify-center my-2">
                         @foreach (var segment in _result.SegmentValidationResults)
                         {
-                            <MudText class="plan-segment mx-2" Typo="Typo.body1" Color="@GetStateColor(segment.State)"><b>@segment.Segment</b></MudText>
+                            <div class="d-inline-flex flex-column align-center">
+                                <MudText class="plan-segment mx-2" Typo="Typo.body1" Color="@GetStateColor(segment.State)"><b>@segment.Segment</b></MudText>
+                                @if (segment.SubInfo != null)
+                                {
+                                    <MudText class="plan-segment" Typo="Typo.body2" Color="@GetStateColor(segment.State)">@segment.SubInfo</MudText>
+                                }
+                            </div>
                         }
                         
                         <MudTooltip Text="Copied" ShowOnHover="false" ShowOnFocus="true">
@@ -260,63 +294,67 @@
 </div>
 
 @code {
-    private FlightPlan Plan = new();
+    private readonly FlightPlan _plan = new();
     private EditForm? _formRef;
     
-    private AirportInformation? _departingInfo = null;
-    private AirportInformation? _destinationInfo = null;
-    private PlanValidationResult? _result = null;
-    private WeatherData? _metar = null;
-    private GeneratedRoute? _route = null;
-    private ClientAerodrome? _departingAerodrome = null;
+    private AirportInformation? _departingFieldInfo;
+    private AirportInformation? _destinationFieldInfo;
+    
+    private PlanValidationResult? _result;
+    private AirportInformation? _departingInfo;
+    private AirportInformation? _destinationInfo;
+    
+    private WeatherData? _metar;
+    private GeneratedRoute? _route;
+    private ClientAerodrome? _departingAerodrome;
 
-    private bool _loading = false;
-    private bool _loadingRoute = false;
-    private bool _loadingValidation = false;
+    private bool _loading;
+    private bool _loadingRoute;
+    private bool _loadingValidation;
     
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        Plan.DepartingAirport = AerodromeService.SelectedAerodrome?.Code ?? "";
+        _plan.DepartingAirport = AerodromeService.SelectedAerodrome?.Code ?? "";
     }
 
     protected override async Task OnInitializedAsync()
     {
         await NameService.LoadData();
-        await DepartingChanged(Plan.DepartingAirport);
+        await DepartingChanged(_plan.DepartingAirport);
     }
     
     private void UpdateRouteValue(string val)
     {
-        Plan.Route = val;
+        _plan.Route = val;
         _route = null;
     }
 
     private async Task CopyPlan()
     {
-        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", string.Join(' ', _result.SegmentValidationResults.Select(s => s.Segment)));
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", string.Join(' ', _result!.SegmentValidationResults.Select(s => s.Segment)));
     }
 
     private async Task CopyCollapsePlan()
     {
-        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", _result.DctCollapse);
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", _result!.DctCollapse);
     }
 
-    private CancellationTokenSource? tokenSource;
+    private CancellationTokenSource? _tokenSource;
     private async Task DepartingChanged(string val)
     {
-        Plan.DepartingAirport = val.ToUpper();
-        _departingInfo = NameService.GetAirport(val);
+        _plan.DepartingAirport = val.ToUpper();
+        _departingFieldInfo = NameService.GetAirport(val);
         
-        tokenSource?.Cancel();
-        tokenSource = new CancellationTokenSource();
+        _tokenSource?.Cancel();
+        _tokenSource = new CancellationTokenSource();
         
         if (_result == null && !string.IsNullOrWhiteSpace(val))
         {
-            var result = await Http.GetAsync($"AerodromeSearch/{HttpUtility.UrlEncode(Plan.DepartingAirport)}", tokenSource.Token);
+            var result = await Http.GetAsync($"AerodromeSearch/{HttpUtility.UrlEncode(_plan.DepartingAirport)}", _tokenSource.Token);
             _departingAerodrome = result.StatusCode == HttpStatusCode.OK ? await result.Content.ReadFromJsonAsync<ClientAerodrome>() : null;
             if(_departingAerodrome != null)
-                _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(Plan.DepartingAirport)}", tokenSource.Token);
+                _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}", _tokenSource.Token);
         }
         
         StateHasChanged();
@@ -324,8 +362,8 @@
     
     private void DestinationChanged(string val)
     {
-        Plan.DestinationAirport = val = val.ToUpper();
-        _destinationInfo = NameService.GetAirport(val);
+        _plan.DestinationAirport = val = val.ToUpper();
+        _destinationFieldInfo = NameService.GetAirport(val);
         
         StateHasChanged();
     }
@@ -335,15 +373,18 @@
         _loading = true;
         _loadingValidation = true;
         
-        var result = await Http.PostAsJsonAsync("FlightPlanValidation", Plan);
+        var result = await Http.PostAsJsonAsync("FlightPlanValidation", _plan);
         _result = await result.Content.ReadFromJsonAsync<PlanValidationResult>();
 
-        _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(Plan.DepartingAirport)}");
+        _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}");
         
         StateHasChanged();
 
         if (_result != null)
         {
+            _departingInfo = NameService.GetAirport(_result.DepartingAirport.Segment);
+            _destinationInfo = NameService.GetAirport(_result.DestinationAirport.Segment);
+            
             await JsRuntime.InvokeVoidAsync("CreateMap");
             
             await JsRuntime.InvokeVoidAsync("AddLine", 
@@ -388,7 +429,7 @@
         }
 
         DestinationChanged("");
-        Plan.Route = "";
+        _plan.Route = "";
         
         _loading = false;
         _loadingValidation = false;
@@ -407,15 +448,15 @@
     
     private async Task GenerateRoute()
     {
-        if (!string.IsNullOrWhiteSpace(Plan.DepartingAirport) && !string.IsNullOrWhiteSpace(Plan.DestinationAirport))
+        if (!string.IsNullOrWhiteSpace(_plan.DepartingAirport) && !string.IsNullOrWhiteSpace(_plan.DestinationAirport))
         {
             _loading = true;
             _loadingRoute = true;
             
             _route = await Http.GetFromJsonAsync<GeneratedRoute>(
-                $"RouteSearch?departure={HttpUtility.UrlEncode(Plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(Plan.DestinationAirport)}&type={Plan.AircraftType}");
+                $"RouteSearch?departure={HttpUtility.UrlEncode(_plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(_plan.DestinationAirport)}&type={_plan.AircraftType}");
             if (_route is { Success: true })
-                Plan.Route = _route.Plan;
+                _plan.Route = _route.Plan;
             
             _loading = false;
             _loadingRoute = false;
