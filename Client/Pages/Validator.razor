@@ -15,29 +15,43 @@
 <div class="d-flex" style="height: 100%;">
     <div class="d-flex flex-column" style="width: 35%;min-width: 600px;">
         <MudPaper Outlined="true" Class="mt-8 mb-4 ml-8 mr-2 pa-4">
-            <EditForm Model="@Plan" OnValidSubmit="@ValidFormSubmitted">
+            <EditForm Model="@Plan" OnValidSubmit="@ValidFormSubmitted" @ref="_formRef">
                 <DataAnnotationsValidator/>
                 <div class="d-flex mb-2">
                     <MudTextField Variant="Variant.Outlined" Label="Departing Airport" Class="mr-2"
                                   Value="Plan.DepartingAirport" For="@(() => Plan.DepartingAirport)"
-                                  T="string" ValueChanged="DepartingChanged" />
+                                  T="string" ValueChanged="DepartingChanged" Disabled="_loading"
+                                  HelperText="@_departingInfo?.AirportName" />
                     <MudTextField Variant="Variant.Outlined" Label="Destination Airport" Class="ml-2"
                                   Value="Plan.DestinationAirport" For="@(() => Plan.DestinationAirport)"
-                                  T="string" ValueChanged="DestinationChanged" />
+                                  T="string" ValueChanged="DestinationChanged" Disabled="_loading"
+                                  HelperText="@_destinationInfo?.AirportName" />
                 </div>
-                <div class="d-flex justify-space-between mb-2">
-                    <MudText Typo="Typo.overline" Style="max-width: 50%;">@(_departingInfo?.AirportName)</MudText>
-                    <MudText Typo="Typo.overline" Style="max-width: 50%;">@(_destinationInfo?.AirportName)</MudText>
-                </div>
-                <MudTextField Variant="Variant.Outlined" Label="Route" Class="mb-2" T="string"
+                <MudRadioGroup @bind-SelectedOption="@Plan.AircraftType" Class="ml-2">
+                        <MudRadio Option="@AircraftType.JET" Color="Color.Primary" Disabled="_loading">Jet</MudRadio>
+                        <MudRadio Option="@AircraftType.NON_JET" Color="Color.Primary" Disabled="_loading">Non-Jet</MudRadio>
+                </MudRadioGroup>
+                <MudTextField Variant="Variant.Outlined" Label="Route" Class="mb-2" T="string" Disabled="_loading"
                               Value="Plan.Route" For="@(() => Plan.Route)" ValueChanged="UpdateRouteValue" />
                 @if (_route != null && !string.IsNullOrWhiteSpace(_route.Message))
                 {
                     <MudText Color="Color.Error" Class="pb-4" Align="Align.Center">@_route.Message</MudText>
                 }
                 <div class="d-flex justify-space-between">
-                    <MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Secondary" OnClick="GenerateRoute">Generate Route</MudButton>
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Validate</MudButton>
+                    <MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Disabled="_loading" Color="Color.Primary" OnClick="GenerateRoute">
+                        Generate Route
+                        @if (_loading && _loadingRoute)
+                        {
+                            <MudProgressCircular Class="ml-2" Size="Size.Small" Indeterminate="true"/>
+                        }
+                    </MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Disabled="_loading" Color="Color.Secondary">
+                        Validate
+                        @if (_loading && _loadingValidation)
+                        {
+                            <MudProgressCircular Class="ml-2" Size="Size.Small" Indeterminate="true"/>
+                        }
+                    </MudButton>
                 </div>
             </EditForm>
         </MudPaper>
@@ -58,7 +72,7 @@
                         @if (_result.AvailableSids?.Any() == true)
                         {
                             <MudExpansionPanel Text="SIDs" Class="px-expand-panel-header">
-                                <MudList Dense="true" Clickable="true" Style="overflow-y: auto;">
+                                <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
                                     @if (_result.AvailableSids.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
                                     {
                                         <MudListSubheader>Recommended SIDs (Click to apply)</MudListSubheader>
@@ -104,7 +118,7 @@
                         @if (_result.AvailableStars?.Any() == true)
                         {
                             <MudExpansionPanel Text="STARs" Class="px-expand-panel-header">
-                                <MudList Dense="true" Clickable="true" Style="overflow-y: auto;">
+                                <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
                                     @if (_result.AvailableStars.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
                                     {
                                         <MudListSubheader>Recommended STARs (Click to apply)</MudListSubheader>
@@ -247,6 +261,8 @@
 
 @code {
     private FlightPlan Plan = new();
+    private EditForm? _formRef;
+    
     private AirportInformation? _departingInfo = null;
     private AirportInformation? _destinationInfo = null;
     private PlanValidationResult? _result = null;
@@ -254,6 +270,10 @@
     private GeneratedRoute? _route = null;
     private ClientAerodrome? _departingAerodrome = null;
 
+    private bool _loading = false;
+    private bool _loadingRoute = false;
+    private bool _loadingValidation = false;
+    
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -285,7 +305,7 @@
     private CancellationTokenSource? tokenSource;
     private async Task DepartingChanged(string val)
     {
-        Plan.DepartingAirport = val;
+        Plan.DepartingAirport = val.ToUpper();
         _departingInfo = NameService.GetAirport(val);
         
         tokenSource?.Cancel();
@@ -304,7 +324,7 @@
     
     private void DestinationChanged(string val)
     {
-        Plan.DestinationAirport = val;
+        Plan.DestinationAirport = val = val.ToUpper();
         _destinationInfo = NameService.GetAirport(val);
         
         StateHasChanged();
@@ -312,6 +332,9 @@
 
     async Task ValidFormSubmitted(EditContext editContext)
     {
+        _loading = true;
+        _loadingValidation = true;
+        
         var result = await Http.PostAsJsonAsync("FlightPlanValidation", Plan);
         _result = await result.Content.ReadFromJsonAsync<PlanValidationResult>();
 
@@ -363,11 +386,12 @@
 
             await JsRuntime.InvokeVoidAsync("ScrollToView");
         }
+
+        DestinationChanged("");
+        Plan.Route = "";
         
-        Plan = new FlightPlan()
-        {
-            DepartingAirport = AerodromeService.SelectedAerodrome?.Code ?? ""
-        };
+        _loading = false;
+        _loadingValidation = false;
     }
 
     private Color GetStateColor(ValidationState state) =>
@@ -385,10 +409,21 @@
     {
         if (!string.IsNullOrWhiteSpace(Plan.DepartingAirport) && !string.IsNullOrWhiteSpace(Plan.DestinationAirport))
         {
+            _loading = true;
+            _loadingRoute = true;
+            
             _route = await Http.GetFromJsonAsync<GeneratedRoute>(
-                $"RouteSearch?departure={HttpUtility.UrlEncode(Plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(Plan.DestinationAirport)}");
+                $"RouteSearch?departure={HttpUtility.UrlEncode(Plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(Plan.DestinationAirport)}&type={Plan.AircraftType}");
             if (_route is { Success: true })
                 Plan.Route = _route.Plan;
+            
+            _loading = false;
+            _loadingRoute = false;
+        }
+        else
+        {
+            _formRef?.EditContext?.NotifyFieldChanged(_formRef!.EditContext.Field("DepartingAirport"));
+            _formRef?.EditContext?.NotifyFieldChanged(_formRef!.EditContext.Field("DestinationAirport"));
         }
     }
 

@@ -59,12 +59,14 @@ public class WaypointService
         return null;
     }
     
-    public IEnumerable<Waypoint> GetWaypointsNear(Location location)
+    public IEnumerable<Waypoint> GetWaypointsNear(Location location, int range)
     {
-        var x1 = location.Longitude - 0.05;
-        var x2 = location.Longitude + 0.05;
-        var y1 = location.Latitude - 0.05;
-        var y2 = location.Latitude + 0.05;
+        var degRange = range * 0.01668468468;
+
+        var x1 = location.Longitude - degRange;
+        var x2 = location.Longitude + degRange;
+        var y1 = location.Latitude - degRange;
+        var y2 = location.Latitude + degRange;
 
         return _waypoints.Values.Where(n =>
             x1 <= n.Location.Longitude &&

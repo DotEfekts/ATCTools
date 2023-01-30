@@ -26,10 +26,12 @@ public class RouteSearchController
     }
 
     [HttpGet]
-    public GeneratedRoute SearchForRoute([FromQuery] string departure, [FromQuery] string destination)
+    public GeneratedRoute SearchForRoute([FromQuery] string departure, [FromQuery] string destination, [FromQuery] AircraftType? Type)
     {
         var departureAerodrome = _aerodromeService.GetAerodrome(departure);
         var destinationAerodrome = _aerodromeService.GetAerodrome(destination);
+
+        var allTypes = Type is null or AircraftType.BOTH;
 
         if (departureAerodrome == null || destinationAerodrome == null)
             return new GeneratedRoute()
@@ -38,16 +40,26 @@ public class RouteSearchController
                 Message = "Departure or destination aerodrome code invalid."
             };
 
-        var startPoints = (departureAerodrome.Sids.Any() ? 
-            departureAerodrome.Sids.Select(t => t.Point)
-                .Concat(departureAerodrome.Sids.SelectMany(s => s.Transitions.Select(t => t.Point)))
-                .Where(t => t != null).Cast<ICodePoint>().Distinct() 
-            :
-            _codepointService.GetCodepointNear(departureAerodrome.Location)).ToList();
+        var sids = departureAerodrome.Sids
+            .Where(s => allTypes || s.AircraftType == AircraftType.BOTH || s.AircraftType == Type).ToList();
+        
+        var startPoints = (sids.Any()
+            ? sids.Select(t => t.Point).Concat(
+                    sids.SelectMany(s => s.Transitions.Select(t => t.Point)))
+                .Where(t => t != null).Cast<ICodePoint>().Distinct()
+            : _codepointService.GetCodepointsNear(departureAerodrome.Location, 2)).ToList();
+         //var startPoints = _codepointService.GetCodepointsNear(departureAerodrome.Location, 2).ToList();
+         
+         var radar = sids?.Where(s => s.Transitions
+             .Any(t => t.Type == TransitionType.RADAR)).Select(t => t.Point!).ToList() ?? new List<ICodePoint>();
 
-        var endPoints = destinationAerodrome.Stars.Any() ? 
-            destinationAerodrome.Stars.Select(t => t.Point).Concat(
-            destinationAerodrome.Stars.SelectMany(s => s.Transitions.Select(t => t.Point)))
+         var stars = destinationAerodrome.Stars
+             .Where(s => allTypes || s.AircraftType == AircraftType.BOTH || s.AircraftType == Type).ToList();
+         
+        var endPoints = stars.Any() ? 
+            stars.Select(t => t.Point)
+            .Concat(stars.SelectMany(s => 
+                s.Transitions.Where(t => allTypes || t.AircraftType == AircraftType.BOTH || t.AircraftType == Type).Select(t => t.Point)))
             .Distinct().ToList() : null;
         
         if (!startPoints.Any())
@@ -57,7 +69,7 @@ public class RouteSearchController
                 Message = "Unable to locate entry points near aerodrome."
             };
 
-        var openList = startPoints.Where(p => p.AirwayPoints.Any()).Select(p => new AirwaySearch(
+        var openList = startPoints.Select(p => new AirwaySearch(
             null,
             p,
             p.Code,
@@ -68,18 +80,18 @@ public class RouteSearchController
         )).ToList();
         var closedList = new List<AirwaySearch>();
 
-        AirwaySearch? current = null;
         AirwaySearch? final = null;
         
         while (openList.Count > 0)
         {
-            current = openList.MinBy(l => l.EstimatedTotalDistance)!;
+            var current = openList.MinBy(l => l.EstimatedTotalDistance)!;
 
             closedList.Add(current);
             openList.Remove(current);
 
             if ((endPoints != null && endPoints.Any(p => p == current.Point)) ||
                 (endPoints == null && current.Point.Location.GetDistance(destinationAerodrome.Location) < 5))
+            //if(current.Point.Location.GetDistance(destinationAerodrome.Location) < 2)
             {
                 final = current;
                 break;
@@ -88,48 +100,60 @@ public class RouteSearchController
             var traversalPoints = current.Point.AirwayPoints
                 .Where(p => p.NextLeg != null)
                 .Select(p => p.NextLeg!)
-                .Select(p => new AirwayLegSearch
+                .Select(p => new RouteLegSearch
                 {
                     AirwayLeg = p,
                     Airway = p.Airway,
                     AirwayPoint = p.EndPoint,
-                    High = p.Level == AirwayLegLevel.HIGH
+                    Point = p.EndPoint.Point
                 }).ToList();
             traversalPoints.AddRange(current.Point.AirwayPoints.Where(p => p.Airway.TwoWay)
                 .Where(p => p.LastLeg != null)
                 .Select(p => p.LastLeg!)
-                .Select(p => new AirwayLegSearch
+                .Select(p => new RouteLegSearch
                 {
                     AirwayLeg = p,
                     Airway = p.Airway,
-                    AirwayPoint = p.StartPoint,
-                    High = p.Level == AirwayLegLevel.HIGH
+                    AirwayPoint = p.EndPoint,
+                    Point = p.EndPoint.Point
                 }));
-            
+
+            traversalPoints.AddRange(_codepointService.GetCodepointsNear(current.Point.Location, 30)
+                .Where(p => p.Code != current.Point.Code)                
+                .Select(p =>
+                new RouteLegSearch
+                {
+                    Point = p
+                }));
             
             foreach (var traversalPoint in traversalPoints)
             {
-                var code = traversalPoint.AirwayPoint.Point.Code + " " + traversalPoint.Airway.Code;
+                var code = traversalPoint.Point.Code + " " + (traversalPoint.Airway?.Code ?? "DCT");
                 
                 if (closedList.Any(l => l.PointAirwayCode == code))
                     continue;
 
-                var switchingAirway = current.LastAirway != traversalPoint.Airway.Code;
-                var weightedLegDistance = traversalPoint.AirwayLeg.Distance *
-                                        (traversalPoint.AirwayLeg.Level == AirwayLegLevel.LOW ? 1.1 : 1) *
-                                        (switchingAirway ? 1.1 : 1);
+                var switchingAirway = current.LastAirway != (traversalPoint.Airway?.Code ?? "DCT");
+                double weightedLegDistance;
+                if (traversalPoint.AirwayLeg != null)
+                    weightedLegDistance = traversalPoint.AirwayLeg.Distance *
+                                          (traversalPoint.AirwayLeg.Level == AirwayLegLevel.LOW ? 1.1 : 1) *
+                                          (switchingAirway ? 1.1 : 1);
+                else
+                    weightedLegDistance = traversalPoint.Point.Location.GetDistance(current.Point.Location) * 
+                                          (radar.Contains(traversalPoint.Point) ? 1 : 1.5);
  
                 if (openList.All(l => l.PointAirwayCode != code))
                     openList.Insert(0, 
                         new AirwaySearch (
                             current,
-                            traversalPoint.AirwayPoint.Point,
+                            traversalPoint.Point,
                             code,
-                            traversalPoint.Airway.Code,
+                            traversalPoint.Airway?.Code ?? "DCT",
                             current.Airways + (switchingAirway ? 1 : 0),
                             current.CurrentDistance + weightedLegDistance,
                             current.CurrentDistance + weightedLegDistance + 
-                            traversalPoint.AirwayPoint.Point.Location.GetDistance(destinationAerodrome.Location)
+                            traversalPoint.Point.Location.GetDistance(destinationAerodrome.Location)
                         ));
                 else
                 {

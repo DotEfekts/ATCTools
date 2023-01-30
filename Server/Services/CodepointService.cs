@@ -54,14 +54,14 @@ public class CodepointService
         return codepoint;
     }
 
-    public IEnumerable<ICodePoint> GetCodepointNear(Location location)
+    public IEnumerable<ICodePoint> GetCodepointsNear(Location location, int range)
     {
         var points = new List<ICodePoint>();
         
-        points.AddRange(_aerodromeService.GetAerodromesNear(location).Select(c => (ICodePoint) c));
-        points.AddRange(_waypointService.GetWaypointsNear(location).Select(c => (ICodePoint) c));
-        points.AddRange(_navaidService.GetNavaidsNear(location).Select(c => (ICodePoint) c));
+        points.AddRange(_aerodromeService.GetAerodromesNear(location, range).Select(c => (ICodePoint) c));
+        points.AddRange(_waypointService.GetWaypointsNear(location, range).Select(c => (ICodePoint) c));
+        points.AddRange(_navaidService.GetNavaidsNear(location, range).Select(c => (ICodePoint) c));
 
-        return points;
+        return points.OrderBy(p => p.Location.GetDistance(location));
     }
 }
