@@ -320,91 +320,26 @@ public class FlightPlanValidationController
                 }
                 else if (segment is CodepointPlanSegment codepoint)
                 {
-                    if (i > 0)
+                    if (lastSegment is AirwayPlanSegment { Exit: null })
                     {
-                        if(lastSegment is SidPlanSegment { Sid.Radar: false } sidSegment)
-                        {
-                            var waypoint = codepoint.Code;
-                            var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.DepartureCode });
-
-                            sidSegment.SubInfo = sidSegment.Sid.Transitions.Select(t => t.Code)
-                                .FirstOrDefault(t => t == waypoint);
-                            
-                            if (sidSegment.SubInfo != null)
-                                sidSegment.SubInfo += " TRANSITION";
-
-                            if (transitions.All(t => t != waypoint))
-                            {
-                                var radarTransition =
-                                    sidSegment.Sid.Transitions.FirstOrDefault(t => t.Type == TransitionType.RADAR);
-
-                                if (radarTransition == null)
-                                {
-                                    segment.State = ValidationState.INVALID;
-                                    segment.ValidationMessage = "Invalid waypoint specified for selected SID";
-                                    continue;
-                                }
-
-                                sidSegment.SubInfo = "RADAR TRANSITION";
-
-                                    if (radarTransition.Track != null && sidSegment.Sid.Point != null)
-                                {
-                                    var track = (int) radarTransition.Track!;
-                                    var departurePoint = sidSegment.Sid.Point;
-                                    var bearingToWaypoint = departurePoint!.Location.GetBearingTo(codepoint.Location!);
-                                    var difference = (bearingToWaypoint - track + 540) % 360 - 180;
-                                    if (Math.Abs(difference) > 90)
-                                    {
-                                        segment.State = ValidationState.WARNING;
-                                        segment.ValidationMessage =
-                                            "Waypoint after radar transition is behind aircraft";
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (lastSegment is AirwayPlanSegment { Exit: null })
-                        {
-                            segment.State = ValidationState.INVALID;
-                            segment.ValidationMessage = "Invalid waypoint exit specified for selected airway";
-                            continue;
-                        }
-
-                        if (lastSegment is AirwayPlanSegment { Reverse: true, Airway.TwoWay: false })
-                        {
-                            segment.State = ValidationState.INVALID;
-                            segment.ValidationMessage = "Invalid direction for selected airway";
-                            continue;
-                        }
-
-                        if (lastSegment is CodepointPlanSegment || lastSegment?.Type == PlanSegmentType.COORDINATE)
-                        {
-                            segment.State = ValidationState.INVALID;
-                            segment.ValidationMessage = "Please specify an airway or DCT between waypoints";
-                            continue;
-                        }
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid waypoint exit specified for selected airway";
+                        continue;
                     }
 
-                    if (i < lastIndex)
+                    if (lastSegment is AirwayPlanSegment { Reverse: true, Airway.TwoWay: false })
                     {
-                        if (nextSegment is StarPlanSegment starSegment)
-                        {
-                            var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == codepoint.Code);
-
-                            if (selectedTransition == null && starSegment.Star.ArrivalCode != codepoint.Code)
-                            {
-                                segment.State = ValidationState.INVALID;
-                                segment.ValidationMessage = "Invalid waypoint specified for selected STAR";
-                                continue;
-                            }
-
-                            if (selectedTransition != null)
-                            {
-                                starSegment.SubInfo = selectedTransition.Code + " TRANSITION";
-                            }
-                        }
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid direction for selected airway";
+                        continue;
                     }
+
+                    // if (lastSegment is CodepointPlanSegment || lastSegment?.Type == PlanSegmentType.COORDINATE)
+                    // {
+                    //     segment.State = ValidationState.INVALID;
+                    //     segment.ValidationMessage = "Please specify an airway or DCT between waypoints";
+                    //     continue;
+                    // }
                 }
                 else if (segment is AirwayPlanSegment airway)
                 {
@@ -462,7 +397,7 @@ public class FlightPlanValidationController
                     airwaySegment.Reverse = false;
                 }
                 else if (airwaySegment.Airway.TwoWay &&
-                    airwaySegment.Airway.AirwayPoints[0].Type == AirwayPointType.START_INTERNATIONAL)
+                         airwaySegment.Airway.AirwayPoints[0].Type == AirwayPointType.START_INTERNATIONAL)
                 {
                     internationalExit = airwaySegment.Airway.AirwayPoints[0];
                     airwaySegment.Reverse = true;
@@ -480,6 +415,84 @@ public class FlightPlanValidationController
                 }
                 
                 continue;
+            }
+            
+            if (lastSegment is SidPlanSegment { Sid.Radar: false } sidSegment)
+            {
+                string waypoint;
+                Location? location;
+                if (segment is CodepointPlanSegment codepoint)
+                {
+                    waypoint = codepoint.Code;
+                    location = codepoint.Location!;
+                }
+                else if(segment.Type == PlanSegmentType.COORDINATE)
+                {
+                    waypoint = segment.Code;
+                    location = segment.Location!;
+                }
+                else
+                {
+                    segment.State = ValidationState.INVALID;
+                    segment.ValidationMessage = "Invalid segment type for SID";
+                    continue;
+                }
+                
+                var transitions = sidSegment.Sid.Transitions.Select(t => t.Code).Concat(new[] { sidSegment.Sid.DepartureCode });
+
+                sidSegment.SubInfo = sidSegment.Sid.Transitions.Select(t => t.Code)
+                    .FirstOrDefault(t => t == waypoint);
+                
+                if (sidSegment.SubInfo != null)
+                    sidSegment.SubInfo += " TRANSITION";
+
+                if (transitions.All(t => t != waypoint))
+                {
+                    var radarTransition =
+                        sidSegment.Sid.Transitions.FirstOrDefault(t => t.Type == TransitionType.RADAR);
+
+                    if (radarTransition == null)
+                    {
+                        segment.State = ValidationState.INVALID;
+                        segment.ValidationMessage = "Invalid waypoint specified for selected SID";
+                        continue;
+                    }
+
+                    sidSegment.SubInfo = "RADAR TRANSITION";
+
+                    if (radarTransition.Track != null && sidSegment.Sid.Point != null)
+                    {
+                        var track = (int) radarTransition.Track!;
+                        var departurePoint = sidSegment.Sid.Point;
+                        var bearingToWaypoint = departurePoint!.Location.GetBearingTo(location);
+                        var difference = (bearingToWaypoint - track + 540) % 360 - 180;
+                        if (Math.Abs(difference) > 90)
+                        {
+                            segment.State = ValidationState.WARNING;
+                            segment.ValidationMessage =
+                                "Waypoint after radar transition is behind aircraft";
+                            continue;
+                        }
+                    }
+                }
+            }
+            
+            if (nextSegment is StarPlanSegment starSegment)
+            {
+                var waypoint = segment is CodepointPlanSegment codepoint ? codepoint.Code : segment.Code;
+                var selectedTransition = starSegment.Star.Transitions.FirstOrDefault(t => t.Code == waypoint);
+
+                if (selectedTransition == null && starSegment.Star.ArrivalCode != waypoint)
+                {
+                    segment.State = ValidationState.INVALID;
+                    segment.ValidationMessage = "Invalid waypoint specified for selected STAR";
+                    continue;
+                }
+
+                if (selectedTransition != null)
+                {
+                    starSegment.SubInfo = selectedTransition.Code + " TRANSITION";
+                }
             }
         }
 
@@ -554,6 +567,20 @@ public class FlightPlanValidationController
                 if(segment is CodepointPlanSegment && lastSegment is DirectPlanSegment)
                     waypoints.Add(new Tuple<string, string>(segment.Code, "DCT"));
             }
+
+            if (segment is SidPlanSegment { Sid.Radar: false } sid)
+            {
+                var point = _codepointService.GetCodepoint(sid.Sid.DepartureCode!);
+                if(point != null)
+                    routeMap.Add(point.Location);
+            }
+
+            if (segment is StarPlanSegment star)
+            {
+                var point = _codepointService.GetCodepoint(star.Star.ArrivalCode);
+                if(point != null)
+                    routeMap.Add(point.Location);
+            }
             
             if (segment is AirwayPlanSegment { Exit: { } } airway)
             {
@@ -606,7 +633,7 @@ public class FlightPlanValidationController
                     {
                         int startIndex;
                         string entryWaypoint = "";
-                        if (radarTransition != null && point.Item2 == "DCT")
+                        if (point.Item1 == val.SidPoint?.Item1 && radarTransition != null && point.Item2 == "DCT")
                         {
                             var firstAfterTransition = waypoints.First(w => w.Item1 != point.Item1);
                             startIndex = segmentResults.FindIndex(s => s.Code == firstAfterTransition.Item1);
@@ -639,7 +666,7 @@ public class FlightPlanValidationController
                             
                             var bearing = sid.Point.Location.GetBearingTo(firstPoint.Location!);
                             var difference = (bearing - radarTransition.Track!.Value + 540) % 360 - 180;
-                            if (Math.Abs(difference) < 90)
+                            if (Math.Abs(difference) < 135)
                             {
                                 routeWithSid = preSid + sid.Code + "/" + sid.Runways + " " +
                                                string.Join(' ', segmentResults.Skip(pIndex).Select(s => s.RebuildSegment()));

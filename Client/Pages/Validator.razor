@@ -1,10 +1,12 @@
-﻿@page "/validator"
-@page "/"
+﻿@inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @using ATCTools.Shared.Models
 @using ATCTools.Client.Services
 @using System.Net
 @using System.Web
 @using ATCTools.Client.Models
+@using ATCTools.Client.Store
+@using Fluxor
+@page "/"
 @inject HttpClient Http
 @inject AerodromeService AerodromeService
 @inject IJSRuntime JsRuntime
@@ -19,11 +21,11 @@
                     <MudTextField Variant="Variant.Outlined" Label="Departing Airport" Class="mr-2"
                                   Value="_plan.DepartingAirport" For="@(() => _plan.DepartingAirport)"
                                   T="string" ValueChanged="DepartingChanged" Disabled="_loading"
-                                  HelperText="@_departingFieldInfo?.AirportName" />
+                                  HelperText="@FieldAirportState.Value.DepartingFieldInfo?.AirportName" />
                     <MudTextField Variant="Variant.Outlined" Label="Destination Airport" Class="ml-2"
                                   Value="_plan.DestinationAirport" For="@(() => _plan.DestinationAirport)"
                                   T="string" ValueChanged="DestinationChanged" Disabled="_loading"
-                                  HelperText="@_destinationFieldInfo?.AirportName" />
+                                  HelperText="@FieldAirportState.Value.DestinationFieldInfo?.AirportName" />
                 </div>
                 <MudRadioGroup @bind-SelectedOption="@_plan.AircraftType" Class="ml-2">
                         <MudRadio Option="@AircraftType.JET" Color="Color.Primary" Disabled="_loading">Jet</MudRadio>
@@ -31,9 +33,9 @@
                 </MudRadioGroup>
                 <MudTextField Variant="Variant.Outlined" Label="Route" Class="mb-2" T="string" Disabled="_loading"
                               Value="_plan.Route" For="@(() => _plan.Route)" ValueChanged="UpdateRouteValue" />
-                @if (_route != null && !string.IsNullOrWhiteSpace(_route.Message))
+                @if (GeneratedRouteState.Value.Route != null && !string.IsNullOrWhiteSpace(GeneratedRouteState.Value.Route.Message))
                 {
-                    <MudText Color="Color.Error" Class="pb-4" Align="Align.Center">@_route.Message</MudText>
+                    <MudText Color="Color.Error" Class="pb-4" Align="Align.Center">@GeneratedRouteState.Value.Route.Message</MudText>
                 }
                 <div class="d-flex justify-space-between">
                     <MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Disabled="_loading" Color="Color.Primary" OnClick="GenerateRoute">
@@ -53,30 +55,30 @@
                 </div>
             </EditForm>
         </MudPaper>
-        @if (_result != null)
+        @if (ClientValidationState.Value.Result != null)
         {
             <MudPaper Outlined="true" Class="mb-8 ml-8 mr-2 pa-4 d-flex flex-column" Style="overflow-y: auto;">
-                @if (_metar != null)
+                @if (MetarState.Value.Metar != null)
                 {
                     <div class="pb-4">
                         <MudText Typo="Typo.button" Class="mr-2"><b>METAR</b></MudText>
-                        <MudText Typo="Typo.button" Align="Align.End">@_metar.Metar</MudText>
+                        <MudText Typo="Typo.button" Align="Align.End">@MetarState.Value.Metar.Metar</MudText>
                     </div>
                     <MudDivider></MudDivider>
                 }
-                @if (_result.AvailableSids.Any() || _result.AvailableStars.Any())
+                @if (ClientValidationState.Value.Result.AvailableSids.Any() || ClientValidationState.Value.Result.AvailableStars.Any())
                 {
                     <MudExpansionPanels Elevation="0" Style="overflow-y:auto; overflow-x:hidden;">
-                        @if (_result.AvailableSids.Any())
+                        @if (ClientValidationState.Value.Result.AvailableSids.Any())
                         {
                             <MudExpansionPanel Text="SIDs" Class="px-expand-panel-header">
                                 <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
-                                    @if (_result.AvailableSids.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
+                                    @if (ClientValidationState.Value.Result.AvailableSids.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
                                     {
                                         <MudListSubheader>Recommended SIDs (Click to apply)</MudListSubheader>
-                                        @foreach (var sid in _result.AvailableSids.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
+                                        @foreach (var sid in ClientValidationState.Value.Result.AvailableSids.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithSid)))
                                         {
-                                            <MudListItem OnClick="() => { _plan.Route = sid.RouteWithSid!; _plan.DepartingAirport = _result.DepartingAirport.Segment; _plan.DestinationAirport = _result.DestinationAirport.Segment; }">
+                                            <MudListItem OnClick="() => { _plan.Route = sid.RouteWithSid!; _plan.DepartingAirport = ClientValidationState.Value.Result.DepartingAirport.Segment; _plan.DestinationAirport = ClientValidationState.Value.Result.DestinationAirport.Segment; }">
                                                 <MudText Typo="Typo.button">
                                                     <b>
                                                         @sid.Name
@@ -93,7 +95,7 @@
                                         }
                                         <MudDivider/>
                                     }
-                                    @foreach (var sid in _result.AvailableSids.Where(s => string.IsNullOrWhiteSpace(s.RouteWithSid)))
+                                    @foreach (var sid in ClientValidationState.Value.Result.AvailableSids.Where(s => string.IsNullOrWhiteSpace(s.RouteWithSid)))
                                     {
                                         <MudListItem Disabled="true">
                                             <MudText Typo="Typo.button">
@@ -113,16 +115,16 @@
                                 </MudList>
                             </MudExpansionPanel>
                         }
-                        @if (_result.AvailableStars.Any())
+                        @if (ClientValidationState.Value.Result.AvailableStars.Any())
                         {
                             <MudExpansionPanel Text="STARs" Class="px-expand-panel-header">
                                 <MudList Dense="true" Clickable="!_loading" Style="overflow-y: auto;">
-                                    @if (_result.AvailableStars.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
+                                    @if (ClientValidationState.Value.Result.AvailableStars.Any(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
                                     {
                                         <MudListSubheader>Recommended STARs (Click to apply)</MudListSubheader>
-                                        @foreach (var star in _result.AvailableStars.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
+                                        @foreach (var star in ClientValidationState.Value.Result.AvailableStars.Where(s => !string.IsNullOrWhiteSpace(s.RouteWithStar)))
                                         {
-                                            <MudListItem OnClick="() => { _plan.Route = star.RouteWithStar!; _plan.DepartingAirport = _result.DepartingAirport.Segment; _plan.DestinationAirport = _result.DestinationAirport.Segment; }">
+                                            <MudListItem OnClick="() => { _plan.Route = star.RouteWithStar!; _plan.DepartingAirport = ClientValidationState.Value.Result.DepartingAirport.Segment; _plan.DestinationAirport = ClientValidationState.Value.Result.DestinationAirport.Segment; }">
                                                 <MudText Typo="Typo.button">
                                                     <b>
                                                         @star.Name
@@ -138,7 +140,7 @@
                                         }
                                         <MudDivider/>
                                     }
-                                    @foreach (var sid in _result.AvailableStars.Where(s => string.IsNullOrWhiteSpace(s.RouteWithStar)))
+                                    @foreach (var sid in ClientValidationState.Value.Result.AvailableStars.Where(s => string.IsNullOrWhiteSpace(s.RouteWithStar)))
                                     {
                                         <MudListItem Disabled="true">
                                             <MudText Typo="Typo.button">
@@ -161,23 +163,23 @@
                 }
             </MudPaper>
         }
-        else if (_departingAerodrome != null)
+        else if (GeneratedRouteState.Value.DepartingAerodrome != null)
         {
             <MudPaper Outlined="true" Class="mb-8 ml-8 mr-2 pa-4 d-flex flex-column" Style="overflow-y: auto;">
-                @if (_metar != null)
+                @if (MetarState.Value.Metar != null)
                 {
                     <div class="d-flex justify-space-between flex-wrap pb-4">
                         <MudText Typo="Typo.button" Class="mr-2"><b>METAR</b></MudText>
-                        <MudText Typo="Typo.button">@_metar.Metar</MudText>
+                        <MudText Typo="Typo.button">@MetarState.Value.Metar.Metar</MudText>
                     </div>
                     <MudDivider></MudDivider>
                 }
-                @if (_departingAerodrome.Sids.Any())
+                @if (GeneratedRouteState.Value.DepartingAerodrome.Sids.Any())
                 {
                     <MudExpansionPanels Elevation="0" Style="overflow-y:auto; overflow-x:hidden;">
                         <MudExpansionPanel Text="SIDs" Class="px-expand-panel-header">
                             <MudList Dense="true" Clickable="false" Style="overflow-y: auto;">
-                                @foreach (var sid in _departingAerodrome.Sids)
+                                @foreach (var sid in GeneratedRouteState.Value.DepartingAerodrome.Sids)
                                 {
                                     <MudListItem>
                                         <MudText Typo="Typo.button">
@@ -207,7 +209,7 @@
     </div>
     <MudPaper Outlined="true" Class="my-8 mr-8 ml-2 pa-4 flex-1">
         <div class="d-flex align-center flex-column" style="height: 100%;">
-            @if (_result == null)
+            @if (ClientValidationState.Value.Result == null)
             {
                 <MudText Typo="Typo.h4" Class="mt-4 mb-16">Enter a route to validate</MudText>
             }
@@ -216,12 +218,12 @@
                 <div class="plan-validation-results" style="width: 100%">
                     <div class="d-flex justify-space-between">
                         <div class="d-flex align-center">
-                            <MudText Class="plan-segment mr-2" Typo="Typo.h5" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.Segment</MudText>
+                            <MudText Class="plan-segment mr-2" Typo="Typo.h5" Color="@GetStateColor(ClientValidationState.Value.Result.DepartingAirport.State)">@ClientValidationState.Value.Result.DepartingAirport.Segment</MudText>
                             <div class="d-inline-flex flex-column justify-center">
-                                @if (_departingInfo != null)
+                                @if (ClientValidationState.Value.DepartingInfo != null)
                                 {
-                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DepartingAirport.State)">@_departingInfo.Value.AirportName</MudText>
-                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DepartingAirport.State)">@_departingInfo.Value.Location</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(ClientValidationState.Value.Result.DepartingAirport.State)">@ClientValidationState.Value.DepartingInfo.Value.AirportName</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(ClientValidationState.Value.Result.DepartingAirport.State)">@ClientValidationState.Value.DepartingInfo.Value.Location</MudText>
                                 }
                                 else
                                 {
@@ -231,21 +233,21 @@
                         </div>
                         <div class="d-flex align-center">
                             <div class="d-inline-flex flex-column justify-center align-end">
-                                @if (_destinationInfo != null)
+                                @if (ClientValidationState.Value.DestinationInfo != null)
                                 {
-                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DestinationAirport.State)">@_destinationInfo.Value.AirportName</MudText>
-                                    <MudText Typo="Typo.body2" Color="@GetStateColor(_result.DestinationAirport.State)">@_destinationInfo.Value.Location</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(ClientValidationState.Value.Result.DestinationAirport.State)">@ClientValidationState.Value.DestinationInfo.Value.AirportName</MudText>
+                                    <MudText Typo="Typo.body2" Color="@GetStateColor(ClientValidationState.Value.Result.DestinationAirport.State)">@ClientValidationState.Value.DestinationInfo.Value.Location</MudText>
                                 }
                                 else
                                 {
                                     <MudText Typo="Typo.body2" Color="Color.Error">Aerodrome information not found</MudText>
                                 }
                             </div>
-                            <MudText class="plan-segment ml-2" Typo="Typo.h5" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.Segment</MudText>
+                            <MudText class="plan-segment ml-2" Typo="Typo.h5" Color="@GetStateColor(ClientValidationState.Value.Result.DestinationAirport.State)">@ClientValidationState.Value.Result.DestinationAirport.Segment</MudText>
                         </div>
                     </div>
                     <div class="flex-1 d-flex justify-center my-2">
-                        @foreach (var segment in _result.SegmentValidationResults)
+                        @foreach (var segment in ClientValidationState.Value.Result.SegmentValidationResults)
                         {
                             <div class="d-inline-flex flex-column align-center">
                                 <MudText class="plan-segment mx-2" Typo="Typo.body1" Color="@GetStateColor(segment.State)"><b>@segment.Segment</b></MudText>
@@ -262,23 +264,23 @@
                         </MudTooltip>
                     </div>
                     <div class="d-flex align-center flex-column mb-2">
-                        @if (!string.IsNullOrWhiteSpace(_result.DepartingAirport.StateDetails))
+                        @if (!string.IsNullOrWhiteSpace(ClientValidationState.Value.Result.DepartingAirport.StateDetails))
                         {
-                            <MudText class="validation-message" Color="@GetStateColor(_result.DepartingAirport.State)">@_result.DepartingAirport.StateDetails</MudText>
+                            <MudText class="validation-message" Color="@GetStateColor(ClientValidationState.Value.Result.DepartingAirport.State)">@ClientValidationState.Value.Result.DepartingAirport.StateDetails</MudText>
                         }
-                        @foreach (var segment in _result.SegmentValidationResults.Where(s => !string.IsNullOrWhiteSpace(s.StateDetails)))
+                        @foreach (var segment in ClientValidationState.Value.Result.SegmentValidationResults.Where(s => !string.IsNullOrWhiteSpace(s.StateDetails)))
                         {
                             <MudText class="validation-message" Color="@GetStateColor(segment.State)">@segment.StateDetails</MudText>
                         }
-                        @if (!string.IsNullOrWhiteSpace(_result.DestinationAirport.StateDetails))
+                        @if (!string.IsNullOrWhiteSpace(ClientValidationState.Value.Result.DestinationAirport.StateDetails))
                         {
-                            <MudText class="validation-message" Color="@GetStateColor(_result.DestinationAirport.State)">@_result.DestinationAirport.StateDetails</MudText>
+                            <MudText class="validation-message" Color="@GetStateColor(ClientValidationState.Value.Result.DestinationAirport.State)">@ClientValidationState.Value.Result.DestinationAirport.StateDetails</MudText>
                         }
-                        @if (_result.DctCollapse != null)
+                        @if (ClientValidationState.Value.Result.DctCollapse != null)
                         {
                             <MudText Typo="Typo.body1"><b>Airway alternative found</b></MudText><br/>
                             <div>
-                                <MudText Typo="Typo.overline"><b>@_result.DctCollapse</b></MudText>
+                                <MudText Typo="Typo.overline"><b>@ClientValidationState.Value.Result.DctCollapse</b></MudText>
                                 <MudTooltip Text="Copied" ShowOnHover="false" ShowOnFocus="true">
                                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
                                                    Title="Copy" OnClick="CopyCollapsePlan" tabindex="-1"></MudIconButton>
@@ -297,16 +299,20 @@
     private readonly FlightPlan _plan = new();
     private EditForm? _formRef;
     
-    private AirportInformation? _departingFieldInfo;
-    private AirportInformation? _destinationFieldInfo;
+    [Inject]
+    private IState<FieldAirportState> FieldAirportState { get; set; }
     
-    private PlanValidationResult? _result;
-    private AirportInformation? _departingInfo;
-    private AirportInformation? _destinationInfo;
+    [Inject]
+    private IState<ClientValidationState> ClientValidationState { get; set; }
     
-    private WeatherData? _metar;
-    private GeneratedRoute? _route;
-    private ClientAerodrome? _departingAerodrome;
+    [Inject]
+    private IState<MetarState> MetarState { get; set; }
+    
+    [Inject]
+    private IState<GeneratedRouteState> GeneratedRouteState { get; set; }
+    
+    [Inject]
+    private IDispatcher Dispatcher { get; set; }
 
     private bool _loading;
     private bool _loadingRoute;
@@ -315,46 +321,59 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        _plan.DepartingAirport = AerodromeService.SelectedAerodrome?.Code ?? "";
+        _plan.DepartingAirport = FieldAirportState.Value.DepartingFieldInfo?.IcaoCode ?? AerodromeService.SelectedAerodrome?.Code ?? "";
+        _plan.DestinationAirport = FieldAirportState.Value.DestinationFieldInfo?.IcaoCode ?? "";
+        _plan.Route = GeneratedRouteState.Value.Route?.Plan ?? "";
     }
 
     protected override async Task OnInitializedAsync()
     {
+        await base.OnInitializedAsync();
+        
         await NameService.LoadData();
         await DepartingChanged(_plan.DepartingAirport);
     }
-    
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        
+        if (firstRender && ClientValidationState.Value.Result != null)
+            await GenerateMap(ClientValidationState.Value.Result);
+    }
+
     private void UpdateRouteValue(string val)
     {
-        _plan.Route = val;
-        _route = null;
+        _plan.Route = val.ToUpper();
+        Dispatcher.Dispatch(new SetRouteAction(null));
     }
 
     private async Task CopyPlan()
     {
-        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", string.Join(' ', _result!.SegmentValidationResults.Select(s => s.Segment)));
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", string.Join(' ', ClientValidationState.Value.Result!.SegmentValidationResults.Select(s => s.Segment)));
     }
 
     private async Task CopyCollapsePlan()
     {
-        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", _result!.DctCollapse);
+        await JsRuntime.InvokeVoidAsync("clipboardCopy.copyText", ClientValidationState.Value.Result!.DctCollapse);
     }
 
     private CancellationTokenSource? _tokenSource;
     private async Task DepartingChanged(string val)
     {
         _plan.DepartingAirport = val.ToUpper();
-        _departingFieldInfo = NameService.GetAirport(val);
+        Dispatcher.Dispatch(new SetDepartingFieldAction(NameService.GetAirport(val)));
         
         _tokenSource?.Cancel();
         _tokenSource = new CancellationTokenSource();
         
-        if (_result == null && !string.IsNullOrWhiteSpace(val))
+        if (ClientValidationState.Value.Result == null && !string.IsNullOrWhiteSpace(val))
         {
             var result = await Http.GetAsync($"AerodromeSearch/{HttpUtility.UrlEncode(_plan.DepartingAirport)}", _tokenSource.Token);
-            _departingAerodrome = result.StatusCode == HttpStatusCode.OK ? await result.Content.ReadFromJsonAsync<ClientAerodrome>() : null;
-            if(_departingAerodrome != null)
-                _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}", _tokenSource.Token);
+            var aerodrome = result.StatusCode == HttpStatusCode.OK ? await result.Content.ReadFromJsonAsync<ClientAerodrome>() : null;
+            Dispatcher.Dispatch(new SetDepartingAerodromeAction(aerodrome));
+            if(aerodrome != null)
+                Dispatcher.Dispatch(new SetMetarAction(await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}", _tokenSource.Token)));
         }
         
         StateHasChanged();
@@ -363,7 +382,7 @@
     private void DestinationChanged(string val)
     {
         _plan.DestinationAirport = val = val.ToUpper();
-        _destinationFieldInfo = NameService.GetAirport(val);
+        Dispatcher.Dispatch(new SetDestinationFieldAction(NameService.GetAirport(val)));
         
         StateHasChanged();
     }
@@ -373,59 +392,22 @@
         _loading = true;
         _loadingValidation = true;
         
-        var result = await Http.PostAsJsonAsync("FlightPlanValidation", _plan);
-        _result = await result.Content.ReadFromJsonAsync<PlanValidationResult>();
+        var httpResult = await Http.PostAsJsonAsync("FlightPlanValidation", _plan);
+        var result = await httpResult.Content.ReadFromJsonAsync<PlanValidationResult>();
 
-        _metar = await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}");
+        Dispatcher.Dispatch(new SetMetarAction(await Http.GetFromJsonAsync<WeatherData>($"WeatherFetch?code={HttpUtility.UrlEncode(_plan.DepartingAirport)}")));
         
         StateHasChanged();
 
-        if (_result != null)
+        if (result != null)
         {
-            _departingInfo = NameService.GetAirport(_result.DepartingAirport.Segment);
-            _destinationInfo = NameService.GetAirport(_result.DestinationAirport.Segment);
-            
-            await JsRuntime.InvokeVoidAsync("CreateMap");
-            
-            await JsRuntime.InvokeVoidAsync("AddLine", 
-                _result.RouteMap.Select(l => new [] {l.Latitude, l.Longitude}).ToArray(), 
-                "var(--mud-palette-success)");
+            Dispatcher.Dispatch(new SetRouteAction(null));
+            Dispatcher.Dispatch(new SetValidationResultAction(
+                result, 
+                NameService.GetAirport(result.DepartingAirport.Segment), 
+                NameService.GetAirport(result.DestinationAirport.Segment)));
 
-            if (_result.DepartingAirport.Location != null)
-            {
-                await JsRuntime.InvokeVoidAsync("AddWaypoint", 
-                    _result.DepartingAirport.Location!.Latitude, 
-                    _result.DepartingAirport.Location.Longitude, 
-                    _result.DepartingAirport.Segment, 
-                    "var(--mud-palette-info)");
-            }
-            
-            foreach (var waypoint in _result.SegmentValidationResults.Where(s => s.Location != null))
-            {
-                await JsRuntime.InvokeVoidAsync("AddWaypoint", 
-                    waypoint.Location!.Latitude, 
-                    waypoint.Location.Longitude, 
-                    waypoint.MapCode, 
-                    waypoint.State switch
-                    {
-                        ValidationState.VALID => "var(--mud-palette-success)",
-                        ValidationState.INTERNATIONAL => "var(--mud-palette-info)",
-                        ValidationState.WARNING => "var(--mud-palette-warning)",
-                        ValidationState.INVALID => "var(--mud-palette-error)",
-                        _ => "var(--mud-palette-primary)"
-                    });
-            }
-
-            if (_result.DestinationAirport.Location != null)
-            {
-                await JsRuntime.InvokeVoidAsync("AddWaypoint", 
-                    _result.DestinationAirport.Location!.Latitude, 
-                    _result.DestinationAirport.Location.Longitude, 
-                    _result.DestinationAirport.Segment, 
-                    "var(--mud-palette-info)");
-            }
-
-            await JsRuntime.InvokeVoidAsync("ScrollToView");
+            await GenerateMap(result);
         }
 
         DestinationChanged("");
@@ -433,6 +415,51 @@
         
         _loading = false;
         _loadingValidation = false;
+    }
+
+    private async Task GenerateMap(PlanValidationResult result)
+    {
+        await JsRuntime.InvokeVoidAsync("CreateMap");
+            
+        await JsRuntime.InvokeVoidAsync("AddLine", 
+            result.RouteMap.Select(l => new [] {l.Latitude, l.Longitude}).ToArray(), 
+            "var(--mud-palette-success)");
+
+        if (result.DepartingAirport.Location != null)
+        {
+            await JsRuntime.InvokeVoidAsync("AddWaypoint", 
+                result.DepartingAirport.Location!.Latitude, 
+                result.DepartingAirport.Location.Longitude, 
+                result.DepartingAirport.Segment, 
+                "var(--mud-palette-info)");
+        }
+            
+        foreach (var waypoint in result.SegmentValidationResults.Where(s => s.Location != null))
+        {
+            await JsRuntime.InvokeVoidAsync("AddWaypoint", 
+                waypoint.Location!.Latitude, 
+                waypoint.Location.Longitude, 
+                waypoint.MapCode, 
+                waypoint.State switch
+                {
+                    ValidationState.VALID => "var(--mud-palette-success)",
+                    ValidationState.INTERNATIONAL => "var(--mud-palette-info)",
+                    ValidationState.WARNING => "var(--mud-palette-warning)",
+                    ValidationState.INVALID => "var(--mud-palette-error)",
+                    _ => "var(--mud-palette-primary)"
+                    });
+        }
+
+        if (result.DestinationAirport.Location != null)
+        {
+            await JsRuntime.InvokeVoidAsync("AddWaypoint", 
+                result.DestinationAirport.Location!.Latitude, 
+                result.DestinationAirport.Location.Longitude, 
+                result.DestinationAirport.Segment, 
+                "var(--mud-palette-info)");
+        }
+
+        await JsRuntime.InvokeVoidAsync("ScrollToView");
     }
 
     private Color GetStateColor(ValidationState state) =>
@@ -453,10 +480,13 @@
             _loading = true;
             _loadingRoute = true;
             
-            _route = await Http.GetFromJsonAsync<GeneratedRoute>(
+            var route = await Http.GetFromJsonAsync<GeneratedRoute>(
                 $"RouteSearch?departure={HttpUtility.UrlEncode(_plan.DepartingAirport)}&destination={HttpUtility.UrlEncode(_plan.DestinationAirport)}&type={_plan.AircraftType}");
-            if (_route is { Success: true })
-                _plan.Route = _route.Plan;
+            if (route is { Success: true })
+            {
+                _plan.Route = route.Plan;
+                Dispatcher.Dispatch(new SetRouteAction(route));
+            }
             
             _loading = false;
             _loadingRoute = false;

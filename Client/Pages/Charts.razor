@@ -1,8 +1,12 @@
-@page "/charts"
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @using ATCTools.Client.Services
 @using ATCTools.Shared.Models
 @using System.Web
+@using ATCTools.Client.Models
+@using ATCTools.Client.Store
+@using Fluxor
 @using Microsoft.Extensions.Logging.Abstractions
+@page "/charts"
 @inject AerodromeService AerodromeService
 @inject HttpClient HttpClient
 @inject IConfiguration Configuration
@@ -12,16 +16,16 @@
         <div>
             
             <MudAutocomplete T="ClientAerodrome" Label="Charts For"
-                             Value="_selectedAerodrome" MaxItems="null" ValueChanged="AerodromeChanged"
+                             Value="ChartState.Value.SelectedAerodrome" MaxItems="null" ValueChanged="AerodromeChanged"
                              SearchFuncWithCancel="SearchAerodromes" Converter="aerodromeConverter"
                              Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"/>
             <MudTextField @bind-Value="_search" Label="Search" Class="mt-4" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"></MudTextField>
         </div>
-        @if (_selectedAerodrome != null)
+        @if (ChartState.Value.SelectedAerodrome != null)
         {
             <MudPaper Class="mt-4" Outlined="true" Style="overflow-y: auto; flex: 1;">
                 <MudList Clickable="true" Dense="true">
-                    @if (_selectedAerodrome.Charts.Length == 0)
+                    @if (ChartState.Value.SelectedAerodrome.Charts.Length == 0)
                     {
                         <MudListItem>
                             No charts available for selected aerodrome
@@ -30,9 +34,9 @@
                     }
                     else
                     {
-                        foreach (var chart in _selectedAerodrome.Charts.Where(c => c.Name.Contains(_search ?? "", StringComparison.InvariantCultureIgnoreCase)))
+                        foreach (var chart in ChartState.Value.SelectedAerodrome.Charts.Where(c => c.Name.Contains(_search ?? "", StringComparison.InvariantCultureIgnoreCase)))
                         {
-                            <MudListItem OnClick="() => _selectedChart = chart">
+                            <MudListItem OnClick="() => SetChart(chart)">
                                 <MudText Typo="Typo.body2">@chart.Name</MudText>
                                 <MudText Typo="Typo.subtitle2">@chart.Updated (Am @chart.Amendment)</MudText>
                             </MudListItem>
@@ -44,20 +48,25 @@
         }
     </div>
     <MudPaper Class="right-container flex-1 mx-16 d-flex justify-center" Outlined="true">
-        @if (_selectedChart == null)
+        @if (ChartState.Value.SelectedChart == null)
         {
             <MudText Typo="Typo.h4" Class="mt-8">Please select a chart</MudText>
         }
         else
         {
-            <iframe style="height: 100%; width: 100%;" src="@(Configuration["ChartBaseUrl"] + _selectedChart.Path)" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
+            <iframe style="height: 100%; width: 100%;" src="@(Configuration["ChartBaseUrl"] + ChartState.Value.SelectedChart.Path)" class="ext-frame @(DarkMode == true ? "dark-mode" : "")"></iframe>
         }
     </MudPaper>
 </div>
 
 @code {
-    private ClientAerodrome? _selectedAerodrome = null;
-    private ClientAerodromeChart? _selectedChart = null;
+    
+    [Inject]
+    private IState<ChartState> ChartState { get; set; }
+    
+    [Inject]
+    private IDispatcher Dispatcher { get; set; }
+    
     private string? _search = null;
     
     [CascadingParameter(Name = "DarkMode")]
@@ -66,19 +75,25 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        _selectedAerodrome = AerodromeService.SelectedAerodrome;
+        if(ChartState.Value.SelectedAerodrome == null)
+            Dispatcher.Dispatch(new SetAerodromeAction(AerodromeService.SelectedAerodrome));
     }
 
     private void AerodromeChanged(ClientAerodrome? clientAerodrome)
     {
-        _selectedAerodrome = clientAerodrome;
+        Dispatcher.Dispatch(new SetAerodromeAction(clientAerodrome));
         _search = "";
         StateHasChanged();
     }
 
+    private void SetChart(ClientAerodromeChart chart)
+    {
+        Dispatcher.Dispatch(new SetChartAction(chart));
+    }
+
     private async Task<IEnumerable<ClientAerodrome>>  SearchAerodromes(string search, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(search) || (_selectedAerodrome != null && search == aerodromeConverter.Set(_selectedAerodrome)))
+        if (string.IsNullOrWhiteSpace(search) || (ChartState.Value.SelectedAerodrome != null && search == aerodromeConverter.Set(ChartState.Value.SelectedAerodrome)))
             return AerodromeService.DefaultAerodromes ?? Array.Empty<ClientAerodrome>();
         
         var result = await HttpClient.GetFromJsonAsync<IEnumerable<ClientAerodrome>>($"AerodromeSearch?search={HttpUtility.UrlEncode(search)}", cancellationToken);

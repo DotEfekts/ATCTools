@@ -5,22 +5,8 @@
 
 <div class="navigation-container">
     <MudButtonNavLink Variant="Variant.Text" Href="/" Match="NavLinkMatch.All" BaseClass="mx-1 px-4" ActiveClass="mud-chip-text mud-chip-color-primary">Validator</MudButtonNavLink>
-    @if (NavigationManager.ToBaseRelativePath(NavigationManager.Uri).StartsWith("charts"))
-    {
-        <MudButton Variant="Variant.Text" Href="/charts/reload" Class="mx-1 px-4 mud-chip-text mud-chip-color-primary">Charts</MudButton>
-    }
-    else
-    {
-        <MudButtonNavLink Variant="Variant.Text" Href="/charts" Match="NavLinkMatch.All" BaseClass="mx-1 px-4" ActiveClass="mud-chip-text mud-chip-color-primary">Charts</MudButtonNavLink>
-    }
-    @if (NavigationManager.ToBaseRelativePath(NavigationManager.Uri).StartsWith("sop"))
-    {
-        <MudButton Variant="Variant.Text" Href="/sop/reload" Class="mx-1 px-4 mud-chip-text mud-chip-color-primary">SoP</MudButton>
-    }
-    else if (_selectedAerodrome != null && !string.IsNullOrWhiteSpace(_selectedAerodrome.SoP))
-    {
-        <MudButtonNavLink Variant="Variant.Text" Href="/sop" Match="NavLinkMatch.All" BaseClass="mx-1 px-4" ActiveClass="mud-chip-text mud-chip-color-primary">SoP</MudButtonNavLink>
-    }
+    <MudButtonNavLink Variant="Variant.Text" Href="/charts" Match="NavLinkMatch.All" BaseClass="mx-1 px-4" ActiveClass="mud-chip-text mud-chip-color-primary">Charts</MudButtonNavLink>
+    <MudButtonNavLink Variant="Variant.Text" Href="/sop" Match="NavLinkMatch.All" BaseClass="mx-1 px-4" ActiveClass="mud-chip-text mud-chip-color-primary">SoP</MudButtonNavLink>
 </div>
 
 @code {
